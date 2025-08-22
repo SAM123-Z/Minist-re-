@@ -22,7 +22,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
 
     try {
       // Check for admin login
-      if (email === 'admin@minjec.gov.dj' && password === 'admin123') {
+      if (email.trim().toLowerCase() === 'admin@minjec.gov.dj' && password === 'admin123') {
         const mockAdminUser = {
           id: 'admin-demo-id',
           email: 'admin@minjec.gov.dj',
@@ -43,16 +43,30 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
 
       // Regular user login
       const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email.trim(),
+        password: password,
       });
 
       if (error) throw error;
 
+      if (!authData.user) {
+        throw new Error('Aucun utilisateur trouvé');
+      }
+
       setMessage({ type: 'success', text: 'Connexion réussie!' });
       onSuccess(authData.user);
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Erreur de connexion' });
+      let errorMessage = 'Erreur de connexion';
+      
+      if (error.message === 'Invalid login credentials') {
+        errorMessage = 'Email ou mot de passe incorrect. Vérifiez vos identifiants.';
+      } else if (error.message === 'Email not confirmed') {
+        errorMessage = 'Votre compte n\'est pas encore confirmé. Vérifiez votre email.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
     }
