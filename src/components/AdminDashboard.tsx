@@ -24,7 +24,9 @@ import {
   Activity,
   AlertCircle,
   Menu,
-  X
+  X,
+  User,
+  Loader2
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -97,10 +99,10 @@ const sidebarItems = [
 ];
 
 const userTypeConfig = {
-  standard_user: { label: 'Utilisateur Standard', color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  cdc_agent: { label: 'Agent CDC', color: 'text-green-600', bgColor: 'bg-green-50' },
-  association: { label: 'Association', color: 'text-purple-600', bgColor: 'bg-purple-50' },
-  admin: { label: 'Administrateur', color: 'text-red-600', bgColor: 'bg-red-50' },
+  standard_user: { label: 'Utilisateur Standard', color: 'text-blue-600', bgColor: 'bg-blue-50', icon: User },
+  cdc_agent: { label: 'Agent CDC', color: 'text-green-600', bgColor: 'bg-green-50', icon: Shield },
+  association: { label: 'Association', color: 'text-purple-600', bgColor: 'bg-purple-50', icon: Building },
+  admin: { label: 'Administrateur', color: 'text-red-600', bgColor: 'bg-red-50', icon: Crown },
 };
 
 export default function AdminDashboard({ user, profile, onLogout }: AdminDashboardProps) {
@@ -423,43 +425,28 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     setProcessingApproval(pendingId);
     try {
-      const { error } = await supabase
-        .from('pending_users')
-        .update({
-          status: 'rejected',
-          approved_by: user.id,
-          approved_at: new Date().toISOString(),
-          rejected_reason: reason,
-        })
-        .eq('id', pendingId);
+      const { data, error } = await supabase.rpc('reject_user_request', {
+        p_pending_id: pendingId,
+        p_admin_id: user.id,
+        p_reason: reason
+      });
 
       if (error) throw error;
 
-      // Enregistrer l'activité
-      await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: user.id,
-          action_type: 'REJECT',
-          target_type: 'USER_REQUEST',
-          target_id: pendingId,
-          description: `Demande d'utilisateur rejetée: ${reason}`,
-          metadata: {
-            pending_user_id: pendingId,
-            rejection_reason: reason,
-          },
-        });
-
-      alert(`Demande rejetée avec succès.\nRaison: ${reason}`);
-      await fetchDashboardData();
+      if (data.success) {
+        alert(`${data.message}`);
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.error);
       }
     } catch (error: any) {
-      console.error('Error approving user:', error);
-      alert('Erreur lors de l\'approbation: ' + error.message);
+      console.error('Error rejecting user:', error);
+      alert('Erreur lors du rejet: ' + error.message);
     } finally {
       setProcessingApproval(null);
     }
   };
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.user_id_or_registration.toLowerCase().includes(searchTerm.toLowerCase());
@@ -541,13 +528,6 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Gestion des Utilisateurs</h2>
-        <button
-          onClick={() => setShowCreateUserModal(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-red-600 via-green-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:via-green-700 hover:to-blue-700 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Créer une Demande
-        </button>
       </div>
 
       {/* Demandes en attente */}
@@ -785,7 +765,6 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
                 onClick={() => {
                   setActiveTab(item.id);
                   setSidebarOpen(false);
@@ -874,7 +853,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       <CreateUserModal
         isOpen={showCreateUserModal}
         onClose={() => setShowCreateUserModal(false)}
-        onUserCreated={handleCreateUserRequest}
+        onUserCreated={fetchDashboardData}
       />
     </div>
   );
