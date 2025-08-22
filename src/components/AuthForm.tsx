@@ -222,7 +222,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             <Phone className="w-6 h-6 text-green-600" />
             <div>
               <p className="font-medium text-gray-900">Phone</p>
-              <p className="text-gray-600">+237 222 23 45 67</p>
+              <p className="text-gray-600">+253 21 35 26 14</p>
             </div>
           </div>
 
@@ -230,7 +230,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             <Mail className="w-6 h-6 text-blue-600" />
             <div>
               <p className="font-medium text-gray-900">Email</p>
-              <p className="text-gray-600">admin@minjec.gov.cm</p>
+              <p className="text-gray-600">admin@minjec.gov.dj</p>
             </div>
           </div>
 
@@ -240,7 +240,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               <p className="font-medium text-gray-900">Address</p>
               <p className="text-gray-600">
                 Ministère de la Jeunesse et de la Culture<br />
-                Yaoundé, Cameroun
+                Djibouti, République de Djibouti
               </p>
             </div>
           </div>

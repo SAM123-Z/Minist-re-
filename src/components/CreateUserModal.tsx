@@ -200,7 +200,7 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
 
       setMessage({ 
         type: 'success', 
-        text: `Utilisateur ${data.username} créé avec succès!` 
+        text: `Demande pour ${data.username} soumise avec succès! L'admin recevra une notification.` 
       });
 
       // Réinitialiser le formulaire après un délai
@@ -241,7 +241,7 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
         <div className="bg-gradient-to-r from-red-600 via-green-600 to-blue-600 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <UserPlus className="w-6 h-6 text-white" />
-            <h2 className="text-xl font-semibold text-white">Créer un Nouvel Utilisateur</h2>
+            <h2 className="text-xl font-semibold text-white">Demande de Création d'Utilisateur</h2>
           </div>
           <button
             onClick={handleClose}
@@ -530,7 +530,7 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
               ) : (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  Créer l'utilisateur
+                  Soumettre la Demande
                 </>
               )}
             </button>
