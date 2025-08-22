@@ -543,6 +543,13 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Gestion des Utilisateurs</h2>
+        <button
+          onClick={() => setShowCreateUserModal(true)}
+          className="flex items-center gap-2 bg-gradient-to-r from-red-600 via-green-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:via-green-700 hover:to-blue-700 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Créer une Demande
+        </button>
       </div>
 
       {/* Demandes en attente */}
