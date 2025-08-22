@@ -265,7 +265,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const handleApproveUser = async (pendingId: string) => {
     setProcessingApproval(pendingId);
     try {
-      const { data, error } = await supabase.rpc('approve_pending_user', {
+      const { data, error } = await supabase.rpc('approve_user_request', {
         p_pending_id: pendingId,
         p_admin_id: user.id
       });
@@ -273,7 +273,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       if (error) throw error;
 
       if (data.success) {
-        alert(`Utilisateur approuvé avec succès! Numéro de série: ${data.serial_number}`);
+        alert(`${data.message}\nCode de passerelle envoyé par email: ${data.gateway_code}`);
         await fetchDashboardData();
       } else {
         throw new Error(data.error);
@@ -291,7 +291,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     setProcessingApproval(pendingId);
     try {
-      const { data, error } = await supabase.rpc('reject_pending_user', {
+      const { data, error } = await supabase.rpc('reject_user_request', {
         p_pending_id: pendingId,
         p_admin_id: user.id,
         p_reason: reason
@@ -300,7 +300,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       if (error) throw error;
 
       if (data.success) {
-        alert('Utilisateur rejeté avec succès!');
+        alert(`${data.message}`);
         await fetchDashboardData();
       } else {
         throw new Error(data.error);
