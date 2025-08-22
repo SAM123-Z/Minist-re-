@@ -123,6 +123,53 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [processingApproval, setProcessingApproval] = useState<string | null>(null);
 
+  // Fonction pour créer une demande d'approbation au lieu de créer directement l'utilisateur
+  const handleCreateUserRequest = async (userData: any) => {
+    try {
+      const additionalInfo: any = {};
+
+      // Préparer les informations supplémentaires selon le type d'utilisateur
+      if (userData.userType === 'cdc_agent' && userData.region) {
+        additionalInfo.region = userData.region;
+        if (userData.commune) additionalInfo.commune = userData.commune;
+        if (userData.quartierCite) additionalInfo.quartierCite = userData.quartierCite;
+      }
+
+      if (userData.userType === 'association') {
+        if (userData.associationName) additionalInfo.associationName = userData.associationName;
+        if (userData.activitySector) additionalInfo.activitySector = userData.activitySector;
+        if (userData.address) additionalInfo.address = userData.address;
+        if (userData.phone) additionalInfo.phone = userData.phone;
+      }
+
+      // Stocker le mot de passe de manière sécurisée
+      additionalInfo.password = userData.password;
+      additionalInfo.createdByAdmin = true;
+
+      // Créer une demande d'approbation au lieu de créer directement l'utilisateur
+      const { error } = await supabase
+        .from('pending_users')
+        .insert({
+          email: userData.email,
+          username: userData.username,
+          user_type: userData.userType,
+          user_id_or_registration: userData.userIdOrRegistration,
+          additional_info: additionalInfo,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      // Rafraîchir les données
+      await fetchDashboardData();
+      
+      alert(`Demande de création d'utilisateur soumise avec succès pour ${userData.username}!`);
+    } catch (error: any) {
+      console.error('Erreur lors de la création de la demande:', error);
+      alert('Erreur lors de la création de la demande: ' + error.message);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -265,19 +312,104 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const handleApproveUser = async (pendingId: string) => {
     setProcessingApproval(pendingId);
     try {
-      const { data, error } = await supabase.rpc('approve_user_request', {
-        p_pending_id: pendingId,
-        p_admin_id: user.id
+      // Récupérer les informations de la demande en attente
+      const { data: pendingUser, error: fetchError } = await supabase
+        .from('pending_users')
+        .select('*')
+        .eq('id', pendingId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!pendingUser) throw new Error('Demande non trouvée');
+
+      // 1. Créer l'utilisateur avec Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: pendingUser.email,
+        password: pendingUser.additional_info.password || 'TempPassword123!',
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Erreur lors de la création de l\'utilisateur');
 
-      if (data.success) {
-        alert(`${data.message}\nCode de passerelle envoyé par email: ${data.gateway_code}`);
-        await fetchDashboardData();
-      } else {
-        throw new Error(data.error);
+      // 2. Créer le profil utilisateur
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          user_type: pendingUser.user_type,
+          username: pendingUser.username,
+          user_id_or_registration: pendingUser.user_id_or_registration,
+        });
+
+      if (profileError) throw profileError;
+
+      // 3. Créer des enregistrements spécifiques selon le type d'utilisateur
+      if (pendingUser.user_type === 'cdc_agent' && pendingUser.additional_info.region) {
+        const departmentValue = pendingUser.additional_info.region === 'Région de Djibouti (capitale)' && pendingUser.additional_info.commune 
+          ? `${pendingUser.additional_info.region} - ${pendingUser.additional_info.commune}${pendingUser.additional_info.quartierCite ? ` (${pendingUser.additional_info.quartierCite})` : ''}`
+          : pendingUser.additional_info.region;
+
+        const { error: agentError } = await supabase
+          .from('cdc_agents')
+          .insert({
+            user_id: authData.user.id,
+            department: departmentValue,
+            status: 'active',
+          });
+
+        if (agentError) throw agentError;
       }
+
+      if (pendingUser.user_type === 'association' && pendingUser.additional_info.associationName) {
+        const { error: associationError } = await supabase
+          .from('associations')
+          .insert({
+            user_id: authData.user.id,
+            association_name: pendingUser.additional_info.associationName,
+            activity_sector: pendingUser.additional_info.activitySector || 'Non spécifié',
+            address: pendingUser.additional_info.address || null,
+            phone: pendingUser.additional_info.phone || null,
+            status: 'approved',
+          });
+
+        if (associationError) throw associationError;
+      }
+
+      // 4. Générer un code de passerelle à 4 chiffres
+      const gatewayCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+      // 5. Mettre à jour la demande comme approuvée
+      const { error: updateError } = await supabase
+        .from('pending_users')
+        .update({
+          status: 'approved',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          serial_number: gatewayCode,
+        })
+        .eq('id', pendingId);
+
+      if (updateError) throw updateError;
+
+      // 6. Enregistrer l'activité
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: user.id,
+          action_type: 'APPROVE',
+          target_type: 'USER_REQUEST',
+          target_id: authData.user.id,
+          description: `Demande d'utilisateur approuvée: ${pendingUser.username} (${pendingUser.user_type})`,
+          metadata: {
+            pending_user_id: pendingId,
+            gateway_code: gatewayCode,
+            user_type: pendingUser.user_type,
+          },
+        });
+
+      alert(`Utilisateur ${pendingUser.username} créé avec succès!\nCode de passerelle: ${gatewayCode}\n\nL'utilisateur peut maintenant se connecter avec:\nEmail: ${pendingUser.email}\nMot de passe: ${pendingUser.additional_info.password || 'TempPassword123!'}`);
+      await fetchDashboardData();
+
     } catch (error: any) {
       console.error('Error approving user:', error);
       alert('Erreur lors de l\'approbation: ' + error.message);
@@ -291,23 +423,39 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     setProcessingApproval(pendingId);
     try {
-      const { data, error } = await supabase.rpc('reject_user_request', {
-        p_pending_id: pendingId,
-        p_admin_id: user.id,
-        p_reason: reason
-      });
+      const { error } = await supabase
+        .from('pending_users')
+        .update({
+          status: 'rejected',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          rejected_reason: reason,
+        })
+        .eq('id', pendingId);
 
       if (error) throw error;
 
-      if (data.success) {
-        alert(`${data.message}`);
-        await fetchDashboardData();
-      } else {
-        throw new Error(data.error);
+      // Enregistrer l'activité
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: user.id,
+          action_type: 'REJECT',
+          target_type: 'USER_REQUEST',
+          target_id: pendingId,
+          description: `Demande d'utilisateur rejetée: ${reason}`,
+          metadata: {
+            pending_user_id: pendingId,
+            rejection_reason: reason,
+          },
+        });
+
+      alert(`Demande rejetée avec succès.\nRaison: ${reason}`);
+      await fetchDashboardData();
       }
     } catch (error: any) {
-      console.error('Error rejecting user:', error);
-      alert('Erreur lors du rejet: ' + error.message);
+      console.error('Error approving user:', error);
+      alert('Erreur lors de l\'approbation: ' + error.message);
     } finally {
       setProcessingApproval(null);
     }
@@ -393,6 +541,13 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Gestion des Utilisateurs</h2>
+        <button
+          onClick={() => setShowCreateUserModal(true)}
+          className="flex items-center gap-2 bg-gradient-to-r from-red-600 via-green-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:via-green-700 hover:to-blue-700 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Créer une Demande
+        </button>
       </div>
 
       {/* Demandes en attente */}
@@ -719,7 +874,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       <CreateUserModal
         isOpen={showCreateUserModal}
         onClose={() => setShowCreateUserModal(false)}
-        onUserCreated={fetchDashboardData}
+        onUserCreated={handleCreateUserRequest}
       />
     </div>
   );

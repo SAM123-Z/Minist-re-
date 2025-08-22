@@ -45,7 +45,7 @@ type CreateUserInputs = z.infer<typeof createUserSchema>;
 interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUserCreated: () => void;
+  onUserCreated: (userData: any) => void;
 }
 
 const userTypeOptions = [
@@ -127,95 +127,26 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
     setMessage(null);
 
     try {
-      // 1. Créer l'utilisateur avec Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (authError) throw authError;
-
-      if (!authData.user) {
-        throw new Error('Erreur lors de la création de l\'utilisateur');
-      }
-
-      // 2. Créer le profil utilisateur
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          user_type: data.userType,
-          username: data.username,
-          user_id_or_registration: data.userIdOrRegistration,
-        });
-
-      if (profileError) throw profileError;
-
-      // 3. Créer des enregistrements spécifiques selon le type d'utilisateur
-      if (data.userType === 'cdc_agent' && data.region) {
-        const departmentValue = data.region === 'Djibouti ville' && data.commune 
-          ? `${data.region} - ${data.commune}${data.quartierCite ? ` (${data.quartierCite})` : ''}`
-          : data.region;
-
-        const { error: agentError } = await supabase
-          .from('cdc_agents')
-          .insert({
-            user_id: authData.user.id,
-            department: departmentValue,
-            status: 'active',
-          });
-
-        if (agentError) throw agentError;
-      }
-
-      if (data.userType === 'association' && data.associationName && data.activitySector) {
-        const { error: associationError } = await supabase
-          .from('associations')
-          .insert({
-            user_id: authData.user.id,
-            association_name: data.associationName,
-            activity_sector: data.activitySector,
-            address: data.address || null,
-            phone: data.phone || null,
-            status: 'approved', // Approuvé automatiquement par l'admin
-          });
-
-        if (associationError) throw associationError;
-      }
-
-      // 4. Enregistrer l'activité
-      await supabase
-        .from('activity_logs')
-        .insert({
-          action_type: 'CREATE',
-          target_type: 'USER',
-          target_id: authData.user.id,
-          description: `Nouvel utilisateur créé: ${data.username} (${data.userType})`,
-          metadata: {
-            user_type: data.userType,
-            username: data.username,
-            created_by_admin: true,
-          },
-        });
+      // Appeler la fonction de création de demande au lieu de créer directement
+      await onUserCreated(data);
 
       setMessage({ 
         type: 'success', 
-        text: `Demande pour ${data.username} soumise avec succès! L'admin recevra une notification.` 
+        text: `Demande de création soumise avec succès pour ${data.username}!` 
       });
 
       // Réinitialiser le formulaire après un délai
       setTimeout(() => {
         reset();
         setMessage(null);
-        onUserCreated();
         onClose();
       }, 2000);
 
     } catch (error: any) {
-      console.error('Erreur lors de la création de l\'utilisateur:', error);
+      console.error('Erreur lors de la soumission de la demande:', error);
       setMessage({ 
         type: 'error', 
-        text: error.message || 'Erreur lors de la création de l\'utilisateur' 
+        text: error.message || 'Erreur lors de la soumission de la demande' 
       });
     } finally {
       setIsLoading(false);
@@ -528,12 +459,12 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Création en cours...
+                  Soumission en cours...
                 </>
               ) : (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  Soumettre la Demande
+                  Créer la Demande
                 </>
               )}
             </button>
