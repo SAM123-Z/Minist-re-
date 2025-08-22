@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, type UserProfile } from '../lib/supabase';
 import AdminDashboard from './AdminDashboard';
+import CDCAgentDashboard from './CDCAgentDashboard';
 import { LogOut, User, Shield, Building, Crown, Settings, Bell, Home, AlertCircle } from 'lucide-react';
 
 interface DashboardProps {
@@ -151,6 +152,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   // Redirection vers l'interface Admin si l'utilisateur est admin
   if (profile.user_type === 'admin') {
     return <AdminDashboard user={user} profile={profile} onLogout={handleLogout} />;
+  }
+
+  // Redirection vers l'interface Agent CDC si l'utilisateur est agent CDC
+  if (profile.user_type === 'cdc_agent') {
+    return <CDCAgentDashboard user={user} profile={profile} onLogout={handleLogout} />;
   }
 
   // Interface pour les autres types d'utilisateurs
