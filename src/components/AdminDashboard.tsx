@@ -801,6 +801,9 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {sidebarItems.map((item) => {
             const IconComponent = item.icon;
+            const isRequestsTab = item.id === 'requests';
+            const hasNotifications = isRequestsTab && pendingCount > 0;
+            
             return (
               <button
                 key={item.id}
@@ -808,14 +811,21 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
                   setActiveTab(item.id);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-left transition-colors ${
                   activeTab === item.id
                     ? 'bg-red-600 text-white shadow-md font-medium'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm'
                 }`}
               >
-                <IconComponent className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <IconComponent className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+                {hasNotifications && (
+                  <div className="flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
+                    {pendingCount}
+                  </div>
+                )}
               </button>
             );
           })}

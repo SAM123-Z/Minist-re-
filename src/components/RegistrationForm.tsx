@@ -599,19 +599,20 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
             )}
 
             {/* Avertissement pour les comptes non-standard */}
-            {selectedUserType !== 'standard_user' && (
-              <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <span className="text-sm font-medium text-yellow-800">
-                    Les comptes {selectedOption?.label} nécessitent une approbation administrative.
-                  </span>
-                </div>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.
-                </p>
+            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">
+                  Tous les comptes nécessitent une approbation administrative.
+                </span>
               </div>
-            )}
+              <p className="text-sm text-blue-700 mt-1">
+                Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.
+              </p>
+              <p className="text-sm text-blue-700 mt-1">
+                🔔 L'administrateur sera notifié en temps réel de votre demande.
+              </p>
+            </div>
 
             {/* Message d'état */}
             {message && (
