@@ -242,7 +242,6 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
             <p className="text-sm text-yellow-800">
               <strong>⏱️ Délai de traitement :</strong> 24 à 48 heures ouvrables
             </p>
-          </p>
         </div>
 
         <div className="space-y-4">
