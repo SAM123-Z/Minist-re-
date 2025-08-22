@@ -393,6 +393,8 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
 
       if (updateError) throw updateError;
 
+      // L'email sera envoyé automatiquement par le trigger de base de données
+
       // 6. Enregistrer l'activité
       await supabase
         .from('activity_logs')
@@ -409,7 +411,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
           },
         });
 
-      alert(`Utilisateur ${pendingUser.username} créé avec succès!\nCode de passerelle: ${gatewayCode}\n\nL'utilisateur peut maintenant se connecter avec:\nEmail: ${pendingUser.email}\nMot de passe: ${pendingUser.additional_info.password || 'TempPassword123!'}`);
+      alert(`✅ Utilisateur ${pendingUser.username} approuvé avec succès!\n\n📧 Un email avec le code de passerelle (${gatewayCode}) a été envoyé à: ${pendingUser.email}\n\n🔑 L'utilisateur peut maintenant finaliser son inscription avec ce code.`);
       await fetchDashboardData();
 
     } catch (error: any) {
@@ -437,6 +439,8 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
 
       if (error) throw error;
 
+      // L'email de rejet sera envoyé automatiquement par le trigger
+
       // Enregistrer l'activité
       await supabase
         .from('activity_logs')
@@ -452,7 +456,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
           },
         });
 
-      alert(`Demande rejetée avec succès.\nRaison: ${reason}`);
+      alert(`❌ Demande rejetée avec succès.\n\n📧 Un email de notification a été envoyé à l'utilisateur.\n\n📝 Raison: ${reason}`);
       await fetchDashboardData();
     } catch (error: any) {
       console.error('Error rejecting user:', error);

@@ -194,7 +194,7 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
 
         setMessage({ 
           type: 'success', 
-          text: `Demande d'inscription soumise avec succès! Un administrateur examinera votre demande et vous recevrez un email avec votre code de passerelle une fois approuvée.` 
+          text: `✅ Demande d'inscription soumise avec succès!\n\n📧 Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.\n\n⏱️ Délai de traitement: 24-48h` 
         });
 
         setTimeout(() => {
@@ -226,8 +226,22 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Demande en Cours de Traitement</h3>
           <p className="text-gray-600">
-            Votre demande d'inscription a été soumise avec succès.
-            Un administrateur l'examinera et vous recevrez un email avec votre code de passerelle à 4 chiffres une fois approuvée.
+            Votre demande d'inscription a été soumise avec succès et est en cours d'examen par notre équipe administrative.
+          </p>
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">📧 Notification par Email</h4>
+            <p className="text-sm text-blue-800">
+              Vous recevrez automatiquement un email contenant :
+            </p>
+            <ul className="text-sm text-blue-800 mt-2 space-y-1">
+              <li>• <strong>Si approuvé</strong> : Code de passerelle à 4 chiffres pour finaliser votre inscription</li>
+              <li>• <strong>Si rejeté</strong> : Raisons du rejet et marche à suivre</li>
+            </ul>
+          </div>
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>⏱️ Délai de traitement :</strong> 24 à 48 heures ouvrables
+            </p>
           </p>
         </div>
 
