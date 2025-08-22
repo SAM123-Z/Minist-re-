@@ -425,20 +425,35 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     setProcessingApproval(pendingId);
     try {
-      const { data, error } = await supabase.rpc('reject_user_request', {
-        p_pending_id: pendingId,
-        p_admin_id: user.id,
-        p_reason: reason
-      });
+      const { error } = await supabase
+        .from('pending_users')
+        .update({
+          status: 'rejected',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          rejected_reason: reason,
+        })
+        .eq('id', pendingId);
 
       if (error) throw error;
 
-      if (data.success) {
-        alert(`${data.message}`);
-        await fetchDashboardData();
-      } else {
-        throw new Error(data.error);
-      }
+      // Enregistrer l'activité
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: user.id,
+          action_type: 'REJECT',
+          target_type: 'USER_REQUEST',
+          target_id: pendingId,
+          description: `Demande d'utilisateur rejetée: ${reason}`,
+          metadata: {
+            pending_user_id: pendingId,
+            rejection_reason: reason,
+          },
+        });
+
+      alert(`Demande rejetée avec succès.\nRaison: ${reason}`);
+      await fetchDashboardData();
     } catch (error: any) {
       console.error('Error rejecting user:', error);
       alert('Erreur lors du rejet: ' + error.message);
