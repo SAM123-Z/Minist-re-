@@ -1,84 +1,31 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { supabase, type AuthFormData, type UserType } from '../lib/supabase';
-import { Eye, EyeOff, User, Shield, Building, Crown, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin } from 'lucide-react';
-
-// Schema for standard users (with email/password)
-const standardUserSchema = z.object({
-  userType: z.literal('standard_user'),
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
-
-// Schema for non-standard users (with username/ID)
-const nonStandardUserSchema = z.object({
-  userType: z.enum(['standard_user', 'cdc_agent', 'association', 'admin'] as const, {
-    required_error: 'Please select a user type',
-  }),
-  username: z.string().min(3, 'Username must be at least 3 characters').max(50, 'Username must be less than 50 characters'),
-  userIdOrRegistration: z.string().min(1, 'User ID/Registration Number is required'),
-});
-
-type StandardUserInputs = z.infer<typeof standardUserSchema>;
-type NonStandardUserInputs = z.infer<typeof nonStandardUserSchema>;
-type AuthFormInputs = StandardUserInputs | NonStandardUserInputs;
-
-const userTypeOptions = [
-  { value: 'standard_user' as const, label: 'Standard User', icon: User, color: 'text-blue-600' },
-  { value: 'cdc_agent' as const, label: 'CDC Agent', icon: Shield, color: 'text-green-600' },
-  { value: 'association' as const, label: 'Association', icon: Building, color: 'text-purple-600' },
-  { value: 'admin' as const, label: 'Admin', icon: Crown, color: 'text-red-600' },
-];
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin, UserPlus } from 'lucide-react';
+import RegistrationForm from './RegistrationForm';
 
 interface AuthFormProps {
   onSuccess: (user: any) => void;
 }
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
-  const [isLogin, setIsLogin] = useState(true);
+  const [currentView, setCurrentView] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [showContactInfo, setShowContactInfo] = useState(false);
-  const [selectedUserType, setSelectedUserType] = useState<UserType>('standard_user');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  // Determine which schema to use based on user type
-  const getSchema = () => {
-    return selectedUserType === 'standard_user' ? standardUserSchema : nonStandardUserSchema;
-  };
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<AuthFormInputs>({
-    resolver: zodResolver(getSchema()),
-    defaultValues: {
-      userType: 'standard_user',
-    },
-  });
-
-  const selectedOption = userTypeOptions.find(option => option.value === selectedUserType);
-  const isStandardUser = selectedUserType === 'standard_user';
-
-  const handleUserTypeChange = (userType: UserType) => {
-    setSelectedUserType(userType);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     setMessage(null);
-    setShowContactInfo(false);
-    reset({ userType });
-  };
 
-  const onSubmit = async (data: AuthFormInputs) => {
-    // For non-standard users, create pending request
-    if (!isStandardUser) {
-      if (selectedUserType === 'admin') {
-        // Create a mock admin user for demonstration
+    try {
+      // Check for admin login
+      if (email === 'admin@minjec.gov.dj' && password === 'admin123') {
         const mockAdminUser = {
           id: 'admin-demo-id',
-          email: 'admin@minjec.gov.cm',
+          email: 'admin@minjec.gov.dj',
           user_metadata: {},
           app_metadata: {},
           aud: 'authenticated',
@@ -91,112 +38,29 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
         setTimeout(() => {
           onSuccess(mockAdminUser);
         }, 1000);
-      } else {
-        // Create pending user request
-        try {
-          const nonStandardData = data as NonStandardUserInputs;
-          
-          const { error } = await supabase
-            .from('pending_users')
-            .insert({
-              email: `${nonStandardData.username}@temp.com`, // Email temporaire
-              username: nonStandardData.username,
-              user_type: nonStandardData.userType,
-              user_id_or_registration: nonStandardData.userIdOrRegistration,
-              status: 'pending'
-            });
-
-          if (error) throw error;
-
-          setMessage({ 
-            type: 'success', 
-            text: 'Votre demande a été soumise avec succès! Un administrateur l\'examinera bientôt.' 
-          });
-          
-          setTimeout(() => {
-            setShowContactInfo(true);
-          }, 2000);
-        } catch (error: any) {
-          setMessage({ type: 'error', text: error.message || 'Erreur lors de la soumission' });
-        }
+        return;
       }
-      return;
-    }
 
-    setIsLoading(true);
-    setMessage(null);
+      // Regular user login
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    try {
-      if (isLogin) {
-        // Login logic for standard users only
-        const standardData = data as StandardUserInputs;
-        const { data: authData, error } = await supabase.auth.signInWithPassword({
-          email: standardData.email,
-          password: standardData.password,
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-
-        // Verify user profile is standard user
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single();
-
-        if (profileError) {
-          throw new Error('User profile not found');
-        }
-
-        if (profile.user_type !== 'standard_user') {
-          throw new Error('This account is not a standard user account');
-        }
-
-        setMessage({ type: 'success', text: 'Login successful!' });
-        onSuccess(authData.user);
-      } else {
-        // Registration logic for standard users only
-        const standardData = data as StandardUserInputs;
-        const { data: authData, error } = await supabase.auth.signUp({
-          email: standardData.email,
-          password: standardData.password,
-        });
-
-        if (error) throw error;
-
-        if (authData.user) {
-          // Create user profile for standard user
-          const { error: profileError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: authData.user.id,
-              user_type: 'standard_user',
-              username: authData.user.email?.split('@')[0] || `user_${authData.user.id.slice(0, 8)}`,
-              user_id_or_registration: authData.user.id,
-            });
-
-          if (profileError) throw profileError;
-
-          setMessage({ type: 'success', text: 'Registration successful! Please check your email to verify your account.' });
-          reset();
-        }
-      }
+      setMessage({ type: 'success', text: 'Connexion réussie!' });
+      onSuccess(authData.user);
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'An error occurred' });
+      setMessage({ type: 'error', text: error.message || 'Erreur de connexion' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleMode = () => {
-    if (!isStandardUser) {
-      setShowContactInfo(true);
-      return;
-    }
-    setIsLogin(!isLogin);
-    setMessage(null);
-    reset();
-  };
+  if (currentView === 'register') {
+    return <RegistrationForm onBackToLogin={() => setCurrentView('login')} />;
+  }
 
   // Contact Information Component
   const ContactInfo = () => (
@@ -258,26 +122,6 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     </div>
   );
 
-  if (showContactInfo) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-md mx-auto">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4">
-              <img 
-                src="/public/files_4816535-1755628297770-images.png" 
-                alt="Logo" 
-                className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl shadow-lg"
-              />
-            </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 px-4">Ministère de la Jeunesse et de la Culture</h1>
-          </div>
-          <ContactInfo />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-md mx-auto">
@@ -298,150 +142,50 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           {/* Header */}
           <div className="bg-gradient-to-r from-red-600 via-green-600 to-blue-600 px-6 py-4">
             <h2 className="text-lg sm:text-xl font-semibold text-white text-center">
-              {isLogin ? 'Sign In' : 'Create Account'}
+              Connexion
             </h2>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-            {/* User Type Selection */}
+          <form onSubmit={handleLogin} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+            {/* Email */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                User Type <span className="text-red-500">*</span>
+                Adresse email <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value={selectedUserType}
-                  onChange={(e) => handleUserTypeChange(e.target.value as UserType)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent appearance-none bg-white pr-10 transition-colors text-sm sm:text-base"
-                >
-                  {userTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  {selectedOption && (
-                    <selectedOption.icon className={`w-5 h-5 ${selectedOption.color}`} />
-                  )}
-                </div>
-              </div>
-              {errors.userType && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.userType.message}
-                </p>
-              )}
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                placeholder="Entrez votre email"
+                required
+              />
             </div>
 
-            {/* Username - Only for non-standard users */}
-            {!isStandardUser && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Username <span className="text-red-500">*</span>
-                </label>
+            {/* Password */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Mot de passe <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
                 <input
-                  type="text"
-                  {...register('username')}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors text-sm sm:text-base"
-                  placeholder="Enter your username"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12 transition-colors text-sm sm:text-base"
+                  placeholder="Entrez votre mot de passe"
+                  required
                 />
-                {errors.username && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.username.message}
-                  </p>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-            )}
-
-            {/* User ID/Registration Number - Only for non-standard users */}
-            {!isStandardUser && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  User ID/Registration Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  {...register('userIdOrRegistration')}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm sm:text-base"
-                  placeholder="Enter your ID or registration number"
-                />
-                {errors.userIdOrRegistration && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.userIdOrRegistration.message}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Email - Only for standard users */}
-            {isStandardUser && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  {...register('email')}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-colors text-sm sm:text-base"
-                  placeholder="Enter your email"
-                />
-                {errors.email && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Password - Only for standard users */}
-            {isStandardUser && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    {...register('password')}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent pr-12 transition-colors text-sm sm:text-base"
-                    placeholder="Enter your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Warning message for non-standard users */}
-            {!isStandardUser && (
-              <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <span className="text-sm font-medium text-yellow-800">
-                    Les comptes {selectedOption?.label} nécessitent une approbation administrative.
-                  </span>
-                </div>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Soumettez votre demande ci-dessous. Vous recevrez un email avec votre numéro de série une fois approuvé.
-                </p>
-              </div>
-            )}
+            </div>
 
             {/* Message Display */}
             {message && (
@@ -468,40 +212,33 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isLogin ? 'Connexion...' : 'Création...'}
+                  Connexion...
                 </>
               ) : (
-                <>
-                  {isStandardUser ? (
-                    isLogin ? 'Se connecter' : 'Créer un compte'
-                  ) : (
-                    'Soumettre la Demande'
-                  )}
-                </>
+                'Se connecter'
               )}
             </button>
 
-            {/* Toggle Mode - Only for standard users */}
-            {isStandardUser && (
-              <div className="text-center pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  {isLogin ? "Pas de compte?" : 'Déjà un compte?'}
-                  <button
-                    type="button"
-                    onClick={toggleMode}
-                    className="ml-2 text-red-600 hover:text-red-700 font-medium transition-colors"
-                  >
-                    {isLogin ? 'Créer un compte' : 'Se connecter'}
-                  </button>
-                </p>
-              </div>
-            )}
+            {/* Registration Link */}
+            <div className="text-center pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600">
+                Pas de compte?
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('register')}
+                  className="ml-2 text-red-600 hover:text-red-700 font-medium transition-colors flex items-center gap-1 justify-center"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  S'inscrire
+                </button>
+              </p>
+            </div>
           </form>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
-          <p>Secure authentication powered by Supabase</p>
+          <p>Authentification sécurisée avec Supabase</p>
         </div>
       </div>
     </div>
