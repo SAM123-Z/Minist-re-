@@ -26,7 +26,7 @@ const registrationSchema = z.object({
   password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
   confirmPassword: z.string(),
   username: z.string().min(3, 'Le nom d\'utilisateur doit contenir au moins 3 caractères'),
-  userIdOrRegistration: z.string().min(1, 'ID/Numéro d\'enregistrement requis'),
+  userIdOrRegistration: z.string().min(1, 'CIN National requis'),
   
   // Champs spécifiques pour les agents CDC
   region: z.string().optional(),
@@ -374,7 +374,7 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  ID/Numéro d'enregistrement <span className="text-red-500">*</span>
+                  CIN National <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -382,7 +382,7 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
                     type="text"
                     {...register('userIdOrRegistration')}
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="ID ou numéro d'enregistrement"
+                    placeholder="Numéro CIN National"
                   />
                 </div>
                 {errors.userIdOrRegistration && (

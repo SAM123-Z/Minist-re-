@@ -215,7 +215,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               <p className="text-base sm:text-lg font-semibold text-gray-900 truncate">{profile.username}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4 sm:col-span-2 md:col-span-1">
-              <p className="text-sm font-medium text-gray-500">ID/Enregistrement</p>
+              <p className="text-sm font-medium text-gray-500">CIN National</p>
               <p className="text-base sm:text-lg font-semibold text-gray-900 truncate">{profile.user_id_or_registration}</p>
             </div>
           </div>
