@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, type UserProfile } from '../lib/supabase';
 import CreateUserModal from './CreateUserModal';
+import RegistrationRequestsManager from './RegistrationRequestsManager';
 import { 
   Users, 
   Shield, 
@@ -26,7 +27,8 @@ import {
   Menu,
   X,
   User,
-  Loader2
+  Loader2,
+  Bell
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -90,6 +92,7 @@ interface ActivityLog {
 
 const sidebarItems = [
   { id: 'dashboard', label: 'Tableau de bord', icon: BarChart3 },
+  { id: 'requests', label: 'Demandes d\'Inscription', icon: Bell },
   { id: 'users', label: 'Gestion Utilisateurs', icon: Users },
   { id: 'agents', label: 'Agents CDC', icon: Shield },
   { id: 'associations', label: 'Associations', icon: Building },
@@ -124,6 +127,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [processingApproval, setProcessingApproval] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // Fonction pour créer une demande d'approbation au lieu de créer directement l'utilisateur
   const handleCreateUserRequest = async (userData: any) => {
@@ -174,6 +178,21 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Écouter les changements de demandes en temps réel
+    const subscription = supabase
+      .channel('pending_users_admin')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'pending_users' },
+        () => {
+          fetchPendingUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -275,6 +294,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
         .order('created_at', { ascending: false });
 
       setPendingUsers(data || []);
+      setPendingCount(data?.filter(u => u.status === 'pending').length || 0);
     } catch (error) {
       console.error('Error fetching pending users:', error);
     }
@@ -723,6 +743,8 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     switch (activeTab) {
       case 'dashboard':
         return renderDashboardOverview();
+      case 'requests':
+        return <RegistrationRequestsManager user={user} />;
       case 'users':
         return renderUsersManagement();
       case 'agents':
@@ -840,6 +862,12 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
               >
                 <Menu className="w-6 h-6" />
               </button>
+              {activeTab === 'requests' && pendingCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                  <Bell className="w-4 h-4" />
+                  {pendingCount} nouvelle{pendingCount > 1 ? 's' : ''} demande{pendingCount > 1 ? 's' : ''}
+                </div>
+              )}
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-red-600 via-green-600 to-blue-600 bg-clip-text text-transparent">
                 {sidebarItems.find(item => item.id === activeTab)?.label || 'Tableau de bord'}
               </h1>
