@@ -63,6 +63,18 @@ interface User {
   };
 }
 
+interface PendingUser {
+  id: string;
+  email: string;
+  username: string;
+  user_type: string;
+  user_id_or_registration: string;
+  additional_info: any;
+  status: 'pending' | 'approved' | 'rejected';
+  serial_number?: string;
+  created_at: string;
+}
+
 interface ActivityLog {
   id: string;
   action_type: string;
@@ -102,12 +114,14 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     recentActivities: 0,
   });
   const [users, setUsers] = useState<User[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [processingApproval, setProcessingApproval] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -118,6 +132,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       await Promise.all([
         fetchStats(),
         fetchUsers(),
+        fetchPendingUsers(),
         fetchActivities(),
       ]);
     } catch (error) {
@@ -203,6 +218,19 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     }
   };
 
+  const fetchPendingUsers = async () => {
+    try {
+      const { data } = await supabase
+        .from('pending_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      setPendingUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching pending users:', error);
+    }
+  };
+
   const fetchActivities = async () => {
     try {
       const { data } = await supabase
@@ -234,6 +262,56 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     onLogout();
   };
 
+  const handleApproveUser = async (pendingId: string) => {
+    setProcessingApproval(pendingId);
+    try {
+      const { data, error } = await supabase.rpc('approve_pending_user', {
+        p_pending_id: pendingId,
+        p_admin_id: user.id
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        alert(`Utilisateur approuvé avec succès! Numéro de série: ${data.serial_number}`);
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      console.error('Error approving user:', error);
+      alert('Erreur lors de l\'approbation: ' + error.message);
+    } finally {
+      setProcessingApproval(null);
+    }
+  };
+
+  const handleRejectUser = async (pendingId: string) => {
+    const reason = prompt('Raison du rejet (optionnel):') || 'Non spécifié';
+    
+    setProcessingApproval(pendingId);
+    try {
+      const { data, error } = await supabase.rpc('reject_pending_user', {
+        p_pending_id: pendingId,
+        p_admin_id: user.id,
+        p_reason: reason
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        alert('Utilisateur rejeté avec succès!');
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      console.error('Error rejecting user:', error);
+      alert('Erreur lors du rejet: ' + error.message);
+    } finally {
+      setProcessingApproval(null);
+    }
+  };
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.user_id_or_registration.toLowerCase().includes(searchTerm.toLowerCase());
@@ -324,6 +402,72 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
         </button>
       </div>
 
+      {/* Demandes en attente */}
+      {pendingUsers.filter(u => u.status === 'pending').length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-yellow-900 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            Demandes en Attente d'Approbation ({pendingUsers.filter(u => u.status === 'pending').length})
+          </h3>
+          <div className="space-y-4">
+            {pendingUsers.filter(u => u.status === 'pending').map((pendingUser) => (
+              <div key={pendingUser.id} className="bg-white rounded-lg p-4 border border-yellow-300">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${userTypeConfig[pendingUser.user_type as keyof typeof userTypeConfig]?.bgColor}`}>
+                        {React.createElement(userTypeConfig[pendingUser.user_type as keyof typeof userTypeConfig]?.icon || User, {
+                          className: `w-4 h-4 ${userTypeConfig[pendingUser.user_type as keyof typeof userTypeConfig]?.color}`
+                        })}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">{pendingUser.username}</h4>
+                        <p className="text-sm text-gray-600">{pendingUser.email}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Type:</span>
+                        <span className="ml-2 font-medium">{userTypeConfig[pendingUser.user_type as keyof typeof userTypeConfig]?.label}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">ID/Enregistrement:</span>
+                        <span className="ml-2 font-medium">{pendingUser.user_id_or_registration}</span>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-gray-500">Demandé le:</span>
+                        <span className="ml-2 font-medium">{new Date(pendingUser.created_at).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleApproveUser(pendingUser.id)}
+                      disabled={processingApproval === pendingUser.id}
+                      className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+                    >
+                      {processingApproval === pendingUser.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <UserCheck className="w-4 h-4" />
+                      )}
+                      Approuver
+                    </button>
+                    <button
+                      onClick={() => handleRejectUser(pendingUser.id)}
+                      disabled={processingApproval === pendingUser.id}
+                      className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm"
+                    >
+                      <UserX className="w-4 h-4" />
+                      Rejeter
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">

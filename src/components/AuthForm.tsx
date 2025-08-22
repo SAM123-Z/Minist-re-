@@ -72,9 +72,8 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   };
 
   const onSubmit = async (data: AuthFormInputs) => {
-    // For non-standard users, prevent form submission and show contact info
+    // For non-standard users, create pending request
     if (!isStandardUser) {
-      // Simulate admin login for demonstration
       if (selectedUserType === 'admin') {
         // Create a mock admin user for demonstration
         const mockAdminUser = {
@@ -93,7 +92,33 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           onSuccess(mockAdminUser);
         }, 1000);
       } else {
-        setShowContactInfo(true);
+        // Create pending user request
+        try {
+          const nonStandardData = data as NonStandardUserInputs;
+          
+          const { error } = await supabase
+            .from('pending_users')
+            .insert({
+              email: `${nonStandardData.username}@temp.com`, // Email temporaire
+              username: nonStandardData.username,
+              user_type: nonStandardData.userType,
+              user_id_or_registration: nonStandardData.userIdOrRegistration,
+              status: 'pending'
+            });
+
+          if (error) throw error;
+
+          setMessage({ 
+            type: 'success', 
+            text: 'Votre demande a été soumise avec succès! Un administrateur l\'examinera bientôt.' 
+          });
+          
+          setTimeout(() => {
+            setShowContactInfo(true);
+          }, 2000);
+        } catch (error: any) {
+          setMessage({ type: 'error', text: error.message || 'Erreur lors de la soumission' });
+        }
       }
       return;
     }
@@ -178,17 +203,17 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
       <div className="bg-gradient-to-r from-red-600 via-green-600 to-blue-600 px-6 py-4">
         <h2 className="text-xl font-semibold text-white text-center">
-          Contact Administrator
+          Demande Soumise
         </h2>
       </div>
       
       <div className="p-6 space-y-6">
         <div className="text-center mb-6">
-          <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Registration Required</h3>
+          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Demande en Cours de Traitement</h3>
           <p className="text-gray-600">
-            {selectedOption?.label} accounts must be created by an administrator. 
-            Please contact us using the information below.
+            Votre demande de création de compte {selectedOption?.label} a été soumise avec succès.
+            Un administrateur l'examinera et vous recevrez un email avec votre numéro de série une fois approuvée.
           </p>
         </div>
 
@@ -226,7 +251,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             onClick={() => setShowContactInfo(false)}
             className="w-full bg-gradient-to-r from-red-600 via-green-600 to-blue-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium hover:from-red-700 hover:via-green-700 hover:to-blue-700 transition-all duration-200 text-sm sm:text-base"
           >
-            Back to Login
+            Retour à la Connexion
           </button>
         </div>
       </div>
@@ -409,19 +434,11 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-yellow-600" />
                   <span className="text-sm font-medium text-yellow-800">
-                    {selectedOption?.label} accounts must be created by an administrator.
+                    Les comptes {selectedOption?.label} nécessitent une approbation administrative.
                   </span>
                 </div>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Cliquez sur{' '}
-                  <button
-                    type="button"
-                    onClick={() => setShowContactInfo(true)}
-                    className="text-yellow-800 underline hover:text-yellow-900 font-medium transition-colors"
-                  >
-                    "Contacter l'administrateur"
-                  </button>
-                  {' '}ci-dessous pour créer votre compte.
+                  Soumettez votre demande ci-dessous. Vous recevrez un email avec votre numéro de série une fois approuvé.
                 </p>
               </div>
             )}
@@ -451,14 +468,14 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isLogin ? 'Signing In...' : 'Creating Account...'}
+                  {isLogin ? 'Connexion...' : 'Création...'}
                 </>
               ) : (
                 <>
                   {isStandardUser ? (
                     isLogin ? 'Se connecter' : 'Créer un compte'
                   ) : (
-                    'Se Connecter'
+                    'Soumettre la Demande'
                   )}
                 </>
               )}
@@ -468,13 +485,13 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             {isStandardUser && (
               <div className="text-center pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  {isLogin ? "Don't have an account?" : 'Already have an account?'}
+                  {isLogin ? "Pas de compte?" : 'Déjà un compte?'}
                   <button
                     type="button"
                     onClick={toggleMode}
                     className="ml-2 text-red-600 hover:text-red-700 font-medium transition-colors"
                   >
-                    {isLogin ? 'Create Account' : 'Sign In'}
+                    {isLogin ? 'Créer un compte' : 'Se connecter'}
                   </button>
                 </p>
               </div>

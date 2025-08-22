@@ -82,6 +82,21 @@ export interface UserProfile {
   created_at: string
 }
 
+export interface PendingUser {
+  id: string
+  email: string
+  username: string
+  user_type: UserType
+  user_id_or_registration: string
+  additional_info: Record<string, any>
+  status: 'pending' | 'approved' | 'rejected'
+  serial_number?: string
+  approved_by?: string
+  approved_at?: string
+  rejected_reason?: string
+  created_at: string
+  updated_at: string
+}
 export interface CDCAgent {
   id: string
   user_id: string
