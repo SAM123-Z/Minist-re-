@@ -11,7 +11,13 @@ function App() {
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        // Clear any invalid tokens if no active session
+        supabase.auth.signOut();
+        setUser(null);
+      }
       setLoading(false);
     });
 
