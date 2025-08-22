@@ -402,17 +402,20 @@ export default function CreateUserModal({ isOpen, onClose, onUserCreated }: Crea
               )}
               
               {/* Quartier/Cité - Seulement pour Djibouti ville */}
-              {showCommuneField && (
+              {showQuartierField && (
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Quartier/Cité
+                    Quartier CDC <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     {...register('quartierCite')}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Nom du quartier ou de la cité"
-                  />
+                  >
+                    <option value="">Sélectionner un quartier</option>
+                    {availableQuartiers.map((quartier) => (
+                      <option key={quartier} value={quartier}>{quartier}</option>
+                    ))}
+                  </select>
                   {errors.quartierCite && (
                     <p className="text-sm text-red-600">{errors.quartierCite.message}</p>
                   )}

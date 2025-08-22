@@ -455,18 +455,21 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
                 <h3 className="text-lg font-medium text-green-900 flex items-center gap-2">
                   <Shield className="w-5 h-5" />
                   Informations Agent CDC
-                </h3>
+              {showQuartierField && (
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Région <span className="text-red-500">*</span>
+                    Quartier CDC <span className="text-red-500">*</span>
                   </label>
                   <select
-                    {...register('region')}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">Sélectionner une région</option>
                     {regions.map((region) => (
                       <option key={region} value={region}>{region}</option>
+                  >
+                    <option value="">Sélectionner un quartier</option>
+                    {availableQuartiers.map((quartier) => (
+                      <option key={quartier} value={quartier}>{quartier}</option>
                     ))}
                   </select>
                   {errors.region && (
