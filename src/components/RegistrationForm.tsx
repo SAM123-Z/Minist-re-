@@ -192,20 +192,6 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
 
         if (error) throw error;
 
-        // Envoyer une notification immédiate à l'admin
-        try {
-          await supabase
-            .from('system_notifications')
-            .insert({
-              type: 'new_registration',
-              title: 'Nouvelle demande d\'inscription',
-              message: `${data.username} (${userTypeOptions.find(option => option.value === selectedUserType)?.label}) a soumis une demande d'inscription`,
-              created_by: null
-            });
-        } catch (notifError) {
-          console.error('Erreur lors de l\'envoi de la notification:', notifError);
-          // Ne pas faire échouer l'inscription si la notification échoue
-        }
         setMessage({ 
           type: 'success', 
           text: `✅ Demande d'inscription soumise avec succès!\n\n📧 Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.\n\n⏱️ Délai de traitement: 24-48h` 
