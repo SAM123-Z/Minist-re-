@@ -82,7 +82,7 @@ serve(async (req) => {
           user_id: userId,
           department: departmentValue,
           status: 'active',
-        })
+        }, { onConflict: 'user_id' })
 
       if (agentError) throw agentError
     }
@@ -97,7 +97,7 @@ serve(async (req) => {
           address: pendingUser.additional_info.address || null,
           phone: pendingUser.additional_info.phone || null,
           status: 'approved',
-        })
+        }, { onConflict: 'user_id' })
 
       if (associationError) throw associationError
     }
