@@ -378,11 +378,24 @@ serve(async (req) => {
     console.error('Error message:', error.message)
     console.error('Error stack:', error.stack)
     console.error('Error details:', error)
+    console.error('Error type:', typeof error)
+    console.error('Error constructor:', error.constructor?.name)
+    
+    // Ensure error message is always a string
+    let errorMessage = 'Internal server error'
+    if (error && typeof error.message === 'string') {
+      errorMessage = error.message
+    } else if (error && typeof error === 'string') {
+      errorMessage = error
+    } else if (error && error.toString) {
+      errorMessage = error.toString()
+    }
     
     return new Response(
       JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message,
+        success: false,
+        error: errorMessage,
+        details: error?.message || 'Unknown error occurred',
         timestamp: new Date().toISOString()
       }),
       {

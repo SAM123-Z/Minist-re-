@@ -91,34 +91,69 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
   const handleApprove = async (pendingId: string) => {
     setProcessingId(pendingId);
     try {
+      console.log('Starting approval process for:', pendingId);
+      
       // Call the server-side approval function with proper headers
-      const { data, error } = await supabase.functions.invoke('approve-registration', {
+      const session = await supabase.auth.getSession();
+      console.log('Session status:', !!session.data.session);
+      
+      const response = await supabase.functions.invoke('approve-registration', {
         body: {
           pendingUserId: pendingId,
           adminUserId: user.id
         },
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
+          'Authorization': `Bearer ${session.data.session?.access_token || ''}`
         }
       });
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Erreur lors de l\'approbation');
+      console.log('Function response:', response);
+      
+      if (response.error) {
+        console.error('Function error:', response.error);
+        throw response.error;
+      }
+      
+      if (!response.data?.success) {
+        console.error('Function returned failure:', response.data);
+        throw new Error(response.data?.error || 'Erreur lors de l\'approbation');
+      }
 
+      const data = response.data;
       alert(`✅ ${data.message}\n\n📧 Un email avec le code de passerelle (${data.gatewayCode}) a été envoyé à l'utilisateur.\n\n🔑 L'utilisateur peut maintenant finaliser son inscription avec ce code.`);
       
     } catch (error: any) {
-      console.error('Erreur lors de l\'approbation:', error);
+      console.error('Full error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error context:', error.context);
       
       let errorMessage = 'Erreur lors de l\'approbation';
       
       // Handle different types of errors
-      if (error.message?.includes('FunctionsHttpError')) {
+      if (error.name === 'FunctionsHttpError' || error.message?.includes('FunctionsHttpError')) {
+        console.error('FunctionsHttpError detected');
         errorMessage = 'Erreur de communication avec le serveur. Vérifiez votre connexion.';
+        
+        // Try to extract more specific error from response
+        if (error.context?.response) {
+          try {
+            const responseText = await error.context.response.text();
+            console.error('Response text:', responseText);
+            try {
+              const responseJson = JSON.parse(responseText);
+              errorMessage = responseJson.error || responseJson.message || responseText;
+            } catch {
+              errorMessage = responseText || error.message;
+            }
+          } catch {
+            errorMessage = error.message || 'Edge Function returned a non-2xx status code';
+          }
+        }
       } else if (error.context?.response) {
         try {
           const responseText = await error.context.response.text();
+          console.error('Response text:', responseText);
           try {
             const responseJson = JSON.parse(responseText);
             errorMessage = responseJson.error || responseJson.message || responseText;
@@ -128,15 +163,13 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
         } catch {
           errorMessage = error.message || 'Edge Function returned a non-2xx status code';
         }
-      } else if (error.message?.includes('Failed to fetch')) {
+      } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
         errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
-      } else if (error.message?.includes('NetworkError')) {
-        errorMessage = 'Erreur réseau. Veuillez réessayer.';
       } else {
-        errorMessage = error.message || 'Erreur lors de l\'approbation';
+        errorMessage = error.message || error.toString() || 'Erreur inconnue lors de l\'approbation';
       }
       
-      alert('Erreur lors de l\'approbation: ' + errorMessage);
+      alert('❌ Erreur lors de l\'approbation:\n\n' + errorMessage);
     } finally {
       setProcessingId(null);
     }
