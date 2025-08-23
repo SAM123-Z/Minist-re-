@@ -184,7 +184,7 @@ export default function CDCAgentDashboard({ user, profile, onLogout }: CDCAgentD
       .from('cdc_agents')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
     
     if (data) setAgentInfo(data);
   };
