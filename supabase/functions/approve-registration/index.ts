@@ -213,11 +213,17 @@ serve(async (req) => {
 
     // 9. Create specific records based on user type
     try {
-      if (pendingUser.user_type === 'cdc_agent' && pendingUser.additional_info?.region) {
+      if (pendingUser.user_type === 'cdc_agent') {
         console.log('Creating CDC agent record')
-        const departmentValue = pendingUser.additional_info.region === 'Djibouti ville' && pendingUser.additional_info.commune 
-          ? `${pendingUser.additional_info.region} - ${pendingUser.additional_info.commune}${pendingUser.additional_info.quartierCite ? ` (${pendingUser.additional_info.quartierCite})` : ''}`
-          : pendingUser.additional_info.region
+        
+        // Ensure we have valid values for required fields
+        const region = pendingUser.additional_info?.region || 'Non spécifié'
+        const commune = pendingUser.additional_info?.commune || ''
+        const quartierCite = pendingUser.additional_info?.quartierCite || ''
+        
+        const departmentValue = region === 'Djibouti ville' && commune 
+          ? `${region} - ${commune}${quartierCite ? ` (${quartierCite})` : ''}`
+          : region
 
         const { error: agentError } = await supabaseAdmin
           .from('cdc_agents')
@@ -237,16 +243,23 @@ serve(async (req) => {
         console.log('CDC agent record created successfully')
       }
 
-      if (pendingUser.user_type === 'association' && pendingUser.additional_info?.associationName) {
+      if (pendingUser.user_type === 'association') {
         console.log('Creating association record')
+        
+        // Ensure we have valid values for required fields
+        const associationName = pendingUser.additional_info?.associationName || 'Association non spécifiée'
+        const activitySector = pendingUser.additional_info?.activitySector || 'Non spécifié'
+        const address = pendingUser.additional_info?.address || null
+        const phone = pendingUser.additional_info?.phone || null
+        
         const { error: associationError } = await supabaseAdmin
           .from('associations')
           .upsert({
             user_id: userId,
-            association_name: pendingUser.additional_info.associationName,
-            activity_sector: pendingUser.additional_info.activitySector || 'Non spécifié',
-            address: pendingUser.additional_info.address || null,
-            phone: pendingUser.additional_info.phone || null,
+            association_name: associationName,
+            activity_sector: activitySector,
+            address: address,
+            phone: phone,
             status: 'approved',
           }, { onConflict: 'user_id' })
 
