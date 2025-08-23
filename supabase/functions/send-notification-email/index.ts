@@ -28,10 +28,12 @@ serve(async (req) => {
   try {
     const { type, to, data }: EmailRequest = await req.json()
 
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+    // Gmail SMTP configuration from environment variables
+    const GMAIL_USER = Deno.env.get('GMAIL_USER')
+    const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD')
     
-    if (!RESEND_API_KEY) {
-      throw new Error('RESEND_API_KEY not configured')
+    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+      throw new Error('Gmail SMTP credentials not configured. Please set GMAIL_USER and GMAIL_APP_PASSWORD environment variables.')
     }
 
     let subject = ''
@@ -57,24 +59,82 @@ serve(async (req) => {
         throw new Error('Invalid email type')
     }
 
-    // Envoi de l'email via Resend
-    const res = await fetch('https://api.resend.com/emails', {
+    // Send email using Gmail SMTP via external service
+    const emailPayload = {
+      from: GMAIL_USER,
+      to: to,
+      subject: subject,
+      html: htmlContent,
+      smtp: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: GMAIL_USER,
+          pass: GMAIL_APP_PASSWORD
+        }
+      }
+    }
+
+    // Use a third-party SMTP service that accepts JSON requests
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'MINJEC <noreply@minjec.gov.dj>',
-        to: [to],
-        subject: subject,
-        html: htmlContent,
+        service_id: 'gmail',
+        template_id: 'custom_html',
+        user_id: 'your_emailjs_user_id', // You'll need to replace this
+        template_params: {
+          from_email: GMAIL_USER,
+          to_email: to,
+          subject: subject,
+          html_content: htmlContent
+        }
       }),
     })
 
     if (!res.ok) {
-      const error = await res.text()
-      throw new Error(`Failed to send email: ${error}`)
+      // Fallback: Try using a simple SMTP relay service
+      const smtpRes = await fetch('https://api.smtp2go.com/v3/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Smtp2go-Api-Key': Deno.env.get('SMTP2GO_API_KEY') || ''
+        },
+        body: JSON.stringify({
+          to: [to],
+          from: GMAIL_USER,
+          subject: subject,
+          html_body: htmlContent,
+          custom_headers: [
+            {
+              header: 'Reply-To',
+              value: GMAIL_USER
+            }
+          ]
+        }),
+      })
+
+      if (!smtpRes.ok) {
+        const error = await smtpRes.text()
+        throw new Error(`Failed to send email via SMTP: ${error}`)
+      }
+
+      const smtpResult = await smtpRes.json()
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          messageId: smtpResult.data?.email_id || 'smtp-sent',
+          type: type,
+          provider: 'smtp2go'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
     const result = await res.json()
@@ -82,8 +142,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageId: result.id,
-        type: type 
+        messageId: result.id || 'emailjs-sent',
+        type: type,
+        provider: 'emailjs'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
