@@ -199,7 +199,7 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
             .insert({
               type: 'new_registration',
               title: 'Nouvelle demande d\'inscription',
-              message: `${data.username} (${userTypeConfig[selectedUserType as keyof typeof userTypeConfig]?.label}) a soumis une demande d'inscription`,
+              message: `${data.username} (${userTypeOptions.find(option => option.value === selectedUserType)?.label}) a soumis une demande d'inscription`,
               created_by: null
             });
         } catch (notifError) {
