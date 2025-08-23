@@ -394,11 +394,18 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const handleApproveUser = async (pendingId: string) => {
     setProcessingApproval(pendingId);
     try {
-      // Call the server-side approval function
+      // Get current session for authentication
+      const { data: session } = await supabase.auth.getSession();
+      
+      // Call the server-side approval function with proper authentication
       const { data, error } = await supabase.functions.invoke('approve-registration', {
         body: {
           pendingUserId: pendingId,
           adminUserId: user.id
+        },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session?.access_token || ''}`
         }
       });
 
@@ -410,7 +417,18 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
 
     } catch (error: any) {
       console.error('Error approving user:', error);
-      alert('Erreur lors de l\'approbation: ' + error.message);
+      
+      let errorMessage = 'Erreur lors de l\'approbation';
+      
+      if (error.message?.includes('FunctionsHttpError')) {
+        errorMessage = 'Erreur de communication avec le serveur. Veuillez réessayer.';
+      } else if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion.';
+      } else {
+        errorMessage = error.message || 'Erreur inconnue';
+      }
+      
+      alert('Erreur lors de l\'approbation: ' + errorMessage);
     } finally {
       setProcessingApproval(null);
     }

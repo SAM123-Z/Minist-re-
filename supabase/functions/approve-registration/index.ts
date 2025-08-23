@@ -11,6 +11,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Add request logging
+  console.log('=== APPROVE REGISTRATION REQUEST ===')
+  console.log('Method:', req.method)
+  console.log('Headers:', Object.fromEntries(req.headers.entries()))
+  
   try {
     console.log('=== APPROVE REGISTRATION FUNCTION START ===')
     

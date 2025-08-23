@@ -91,11 +91,15 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
   const handleApprove = async (pendingId: string) => {
     setProcessingId(pendingId);
     try {
-      // Call the server-side approval function
+      // Call the server-side approval function with proper headers
       const { data, error } = await supabase.functions.invoke('approve-registration', {
         body: {
           pendingUserId: pendingId,
           adminUserId: user.id
+        },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
         }
       });
 
@@ -107,10 +111,12 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
     } catch (error: any) {
       console.error('Erreur lors de l\'approbation:', error);
       
-      let errorMessage = 'Erreur inconnue';
+      let errorMessage = 'Erreur lors de l\'approbation';
       
-      // Try to extract detailed error from Edge Function response
-      if (error.context?.response) {
+      // Handle different types of errors
+      if (error.message?.includes('FunctionsHttpError')) {
+        errorMessage = 'Erreur de communication avec le serveur. Vérifiez votre connexion.';
+      } else if (error.context?.response) {
         try {
           const responseText = await error.context.response.text();
           try {
@@ -122,6 +128,10 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
         } catch {
           errorMessage = error.message || 'Edge Function returned a non-2xx status code';
         }
+      } else if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
+      } else if (error.message?.includes('NetworkError')) {
+        errorMessage = 'Erreur réseau. Veuillez réessayer.';
       } else {
         errorMessage = error.message || 'Erreur lors de l\'approbation';
       }
