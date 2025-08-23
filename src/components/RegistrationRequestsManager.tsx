@@ -91,95 +91,18 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
   const handleApprove = async (pendingId: string) => {
     setProcessingId(pendingId);
     try {
-      const pendingUser = pendingUsers.find(u => u.id === pendingId);
-      if (!pendingUser) throw new Error('Demande non trouvée');
-
-      // 1. Créer l'utilisateur avec Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: pendingUser.email,
-        password: pendingUser.additional_info.password || 'TempPassword123!',
+      // Call the server-side approval function
+      const { data, error } = await supabase.functions.invoke('approve-registration', {
+        body: {
+          pendingUserId: pendingId,
+          adminUserId: user.id
+        }
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Erreur lors de la création de l\'utilisateur');
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erreur lors de l\'approbation');
 
-      // 2. Créer le profil utilisateur
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          user_type: pendingUser.user_type,
-          username: pendingUser.username,
-          user_id_or_registration: pendingUser.user_id_or_registration,
-        });
-
-      if (profileError) throw profileError;
-
-      // 3. Créer des enregistrements spécifiques selon le type d'utilisateur
-      if (pendingUser.user_type === 'cdc_agent' && pendingUser.additional_info.region) {
-        const departmentValue = pendingUser.additional_info.region === 'Djibouti ville' && pendingUser.additional_info.commune 
-          ? `${pendingUser.additional_info.region} - ${pendingUser.additional_info.commune}${pendingUser.additional_info.quartierCite ? ` (${pendingUser.additional_info.quartierCite})` : ''}`
-          : pendingUser.additional_info.region;
-
-        const { error: agentError } = await supabase
-          .from('cdc_agents')
-          .insert({
-            user_id: authData.user.id,
-            department: departmentValue,
-            status: 'active',
-          });
-
-        if (agentError) throw agentError;
-      }
-
-      if (pendingUser.user_type === 'association' && pendingUser.additional_info.associationName) {
-        const { error: associationError } = await supabase
-          .from('associations')
-          .insert({
-            user_id: authData.user.id,
-            association_name: pendingUser.additional_info.associationName,
-            activity_sector: pendingUser.additional_info.activitySector || 'Non spécifié',
-            address: pendingUser.additional_info.address || null,
-            phone: pendingUser.additional_info.phone || null,
-            status: 'approved',
-          });
-
-        if (associationError) throw associationError;
-      }
-
-      // 4. Générer un code de passerelle à 4 chiffres
-      const gatewayCode = Math.floor(1000 + Math.random() * 9000).toString();
-
-      // 5. Mettre à jour la demande comme approuvée
-      const { error: updateError } = await supabase
-        .from('pending_users')
-        .update({
-          status: 'approved',
-          approved_by: user.id,
-          approved_at: new Date().toISOString(),
-          serial_number: gatewayCode,
-        })
-        .eq('id', pendingId);
-
-      if (updateError) throw updateError;
-
-      // 6. Enregistrer l'activité
-      await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: user.id,
-          action_type: 'APPROVE',
-          target_type: 'USER_REQUEST',
-          target_id: authData.user.id,
-          description: `Demande d'utilisateur approuvée: ${pendingUser.username} (${pendingUser.user_type})`,
-          metadata: {
-            pending_user_id: pendingId,
-            gateway_code: gatewayCode,
-            user_type: pendingUser.user_type,
-          },
-        });
-
-      alert(`✅ Utilisateur ${pendingUser.username} approuvé avec succès!\n\n📧 Un email avec le code de passerelle (${gatewayCode}) a été envoyé à: ${pendingUser.email}\n\n🔑 L'utilisateur peut maintenant finaliser son inscription avec ce code.`);
+      alert(`✅ ${data.message}\n\n📧 Un email avec le code de passerelle (${data.gatewayCode}) a été envoyé à l'utilisateur.\n\n🔑 L'utilisateur peut maintenant finaliser son inscription avec ce code.`);
       
     } catch (error: any) {
       console.error('Erreur lors de l\'approbation:', error);
