@@ -166,6 +166,9 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
 
       // Envoyer notification immédiate à l'admin
       try {
+        // Générer un token de sécurité pour les liens d'approbation
+        const securityToken = await generateSecurityToken(pendingUserData.id)
+        
         const selectedOption = userTypeOptions.find(option => option.value === selectedUserType);
         
         await supabase.functions.invoke('send-notification-email', {
@@ -178,7 +181,9 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
               userType: selectedOption?.label || selectedUserType,
               userIdOrRegistration: data.userIdOrRegistration,
               submissionDate: new Date().toLocaleDateString('fr-FR'),
-              adminPanelUrl: window.location.origin + '/admin/requests'
+              adminPanelUrl: window.location.origin + '/admin/requests',
+              pendingId: pendingUserData.id,
+              securityToken: securityToken
             }
           }
         });
@@ -207,6 +212,14 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
     }
   };
 
+  // Fonction pour générer un token de sécurité
+  const generateSecurityToken = async (pendingId: string): Promise<string> => {
+    const data = `${pendingId}-${Date.now()}`
+    const encoder = new TextEncoder()
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data))
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16)
+  }
   // Contact Information Component
   const ContactInfo = () => (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">

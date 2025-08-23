@@ -230,8 +230,13 @@ function generateAdminNotificationHTML(data: any): string {
     'admin': 'Administrateur'
   }
 
-  // Générer un ID unique pour cette demande (utiliser les premières lettres du nom + timestamp)
-  const requestId = `${data.username?.substring(0, 3).toUpperCase() || 'REQ'}-${Date.now().toString().slice(-6)}`
+  // Générer les liens d'approbation sécurisés
+  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/rest/v1', '') || 'https://your-project.supabase.co'
+  const pendingId = data.pendingId || 'unknown'
+  const token = data.securityToken || 'token'
+  
+  const approveUrl = `${baseUrl}/functions/v1/approve-via-link?action=approve&id=${pendingId}&token=${token}`
+  const rejectUrl = `${baseUrl}/functions/v1/approve-via-link?action=reject&id=${pendingId}&token=${token}&reason=Non%20conforme`
 
   return `
     <!DOCTYPE html>
@@ -245,7 +250,6 @@ function generateAdminNotificationHTML(data: any): string {
         <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #dc2626, #16a34a, #2563eb); padding: 20px; border-radius: 12px;">
           <h1 style="color: white; margin: 0; font-size: 24px;">MINJEC - Nouvelle Demande</h1>
           <p style="color: white; margin: 10px 0 0 0; opacity: 0.9;">Système de Gestion des Inscriptions</p>
-          <p style="color: white; margin: 10px 0 0 0; font-weight: bold; font-size: 18px;">ID: ${requestId}</p>
         </div>
         
         <div style="background: #f8fafc; padding: 25px; border-radius: 12px; border-left: 4px solid #2563eb; margin-bottom: 25px;">
@@ -278,23 +282,25 @@ function generateAdminNotificationHTML(data: any): string {
           </table>
         </div>
         
-        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f59e0b;">
-          <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 18px;">📧 Approbation par Email</h3>
-          <p style="color: #92400e; margin: 0 0 15px 0; font-size: 14px;">
-            Vous pouvez approuver ou rejeter cette demande directement par email :
+        <div style="background: #f0f9ff; padding: 25px; border-radius: 12px; text-align: center; margin: 25px 0; border: 2px solid #0ea5e9;">
+          <h3 style="color: #0c4a6e; margin: 0 0 20px 0; font-size: 20px;">⚡ Approbation Rapide</h3>
+          <p style="color: #0c4a6e; margin: 0 0 20px 0; font-size: 14px;">
+            Cliquez directement sur l'un des boutons ci-dessous pour traiter cette demande :
           </p>
-          <div style="display: flex; gap: 10px; margin: 15px 0;">
-            <a href="mailto:admin@minjec.gov.dj?subject=APPROUVER-${requestId}&body=Demande approuvée pour ${data.username}" 
-               style="display: inline-block; background: #16a34a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-right: 10px;">
+          
+          <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <a href="${approveUrl}" 
+               style="display: inline-block; background: #16a34a; color: white; padding: 15px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); min-width: 140px;">
               ✅ APPROUVER
             </a>
-            <a href="mailto:admin@minjec.gov.dj?subject=REJETER-${requestId}&body=Demande rejetée pour ${data.username}. Raison: [Indiquez la raison ici]" 
-               style="display: inline-block; background: #dc2626; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            <a href="${rejectUrl}" 
+               style="display: inline-block; background: #dc2626; color: white; padding: 15px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); min-width: 140px;">
               ❌ REJETER
             </a>
           </div>
-          <p style="color: #92400e; margin: 15px 0 0 0; font-size: 12px; font-style: italic;">
-            Cliquez sur les boutons ci-dessus ou répondez à cet email avec "APPROUVER-${requestId}" ou "REJETER-${requestId}" dans l'objet.
+          
+          <p style="color: #0c4a6e; margin: 20px 0 0 0; font-size: 12px; font-style: italic;">
+            💡 Un clic suffit ! Le traitement sera automatique et l'utilisateur sera notifié immédiatement.
           </p>
         </div>
         
