@@ -6,17 +6,18 @@ const corsHeaders = {
 }
 
 interface EmailRequest {
-  type: 'admin_notification' | 'approval' | 'rejection';
+  type: 'admin_notification' | 'approval' | 'rejection' | 'otp';
   to: string;
   data: {
-    username: string;
-    email: string;
-    userType: string;
-    userIdOrRegistration: string;
+    username?: string;
+    email?: string;
+    userType?: string;
+    userIdOrRegistration?: string;
     submissionDate?: string;
     gatewayCode?: string;
     rejectionReason?: string;
     adminPanelUrl?: string;
+    otp?: string;
   };
 }
 
@@ -29,17 +30,24 @@ serve(async (req) => {
     const { type, to, data }: EmailRequest = await req.json()
 
     // Gmail SMTP configuration from environment variables
-    const GMAIL_USER = Deno.env.get('GMAIL_USER')
-    const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD')
+    const MAIL_USERNAME = Deno.env.get('MAIL_USERNAME') || Deno.env.get('GMAIL_USER')
+    const MAIL_PASSWORD = Deno.env.get('MAIL_PASSWORD') || Deno.env.get('GMAIL_APP_PASSWORD')
+    const MAIL_FROM_ADDRESS = Deno.env.get('MAIL_FROM_ADDRESS') || MAIL_USERNAME
+    const MAIL_FROM_NAME = Deno.env.get('MAIL_FROM_NAME') || 'MINJEC Auth'
     
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-      throw new Error('Gmail SMTP credentials not configured. Please set GMAIL_USER and GMAIL_APP_PASSWORD environment variables.')
+    if (!MAIL_USERNAME || !MAIL_PASSWORD) {
+      throw new Error('Gmail SMTP credentials not configured. Please set MAIL_USERNAME and MAIL_PASSWORD environment variables.')
     }
 
     let subject = ''
     let htmlContent = ''
 
     switch (type) {
+      case 'otp':
+        subject = `Code de vérification - ${data.otp}`
+        htmlContent = generateOtpHTML(data)
+        break
+        
       case 'admin_notification':
         subject = `🔔 Nouvelle demande d'inscription - ${data.userType} - ${data.username}`
         htmlContent = generateAdminNotificationHTML(data)
@@ -59,98 +67,93 @@ serve(async (req) => {
         throw new Error('Invalid email type')
     }
 
-    // Send email using Gmail SMTP via external service
+    // Send email using SMTP2GO service (supports Gmail SMTP relay)
     const emailPayload = {
-      from: GMAIL_USER,
-      to: to,
+      to: [to],
+      from: `${MAIL_FROM_NAME} <${MAIL_FROM_ADDRESS}>`,
       subject: subject,
-      html: htmlContent,
-      smtp: {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: {
-          user: GMAIL_USER,
-          pass: GMAIL_APP_PASSWORD
+      html_body: htmlContent,
+      custom_headers: [
+        {
+          header: 'Reply-To',
+          value: MAIL_FROM_ADDRESS
         }
-      }
+      ]
     }
 
-    // Use a third-party SMTP service that accepts JSON requests
-    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        service_id: 'gmail',
-        template_id: 'custom_html',
-        user_id: 'your_emailjs_user_id', // You'll need to replace this
-        template_params: {
-          from_email: GMAIL_USER,
-          to_email: to,
-          subject: subject,
-          html_content: htmlContent
-        }
-      }),
-    })
-
-    if (!res.ok) {
-      // Fallback: Try using a simple SMTP relay service
+    // Try SMTP2GO first (most reliable for Gmail SMTP)
+    const SMTP2GO_API_KEY = Deno.env.get('SMTP2GO_API_KEY')
+    
+    if (SMTP2GO_API_KEY) {
       const smtpRes = await fetch('https://api.smtp2go.com/v3/email/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Smtp2go-Api-Key': Deno.env.get('SMTP2GO_API_KEY') || ''
+          'X-Smtp2go-Api-Key': SMTP2GO_API_KEY
+        },
+        body: JSON.stringify(emailPayload),
+      })
+
+      if (smtpRes.ok) {
+        const smtpResult = await smtpRes.json()
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            messageId: smtpResult.data?.email_id || 'smtp-sent',
+            type: type,
+            provider: 'smtp2go'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        )
+      }
+    }
+
+    // Fallback to EmailJS
+    const EMAILJS_USER_ID = Deno.env.get('EMAILJS_USER_ID')
+    
+    if (EMAILJS_USER_ID) {
+      const emailjsRes = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: [to],
-          from: GMAIL_USER,
-          subject: subject,
-          html_body: htmlContent,
-          custom_headers: [
-            {
-              header: 'Reply-To',
-              value: GMAIL_USER
-            }
-          ]
+          service_id: 'gmail',
+          template_id: 'custom_html',
+          user_id: EMAILJS_USER_ID,
+          template_params: {
+            from_email: MAIL_FROM_ADDRESS,
+            to_email: to,
+            subject: subject,
+            html_content: htmlContent,
+            from_name: MAIL_FROM_NAME
+          }
         }),
       })
 
-      if (!smtpRes.ok) {
-        const error = await smtpRes.text()
-        throw new Error(`Failed to send email via SMTP: ${error}`)
+      if (emailjsRes.ok) {
+        const result = await emailjsRes.json()
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            messageId: result.id || 'emailjs-sent',
+            type: type,
+            provider: 'emailjs'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        )
       }
-
-      const smtpResult = await smtpRes.json()
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          messageId: smtpResult.data?.email_id || 'smtp-sent',
-          type: type,
-          provider: 'smtp2go'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      )
     }
 
-    const result = await res.json()
+    // If all services fail, throw error
+    throw new Error('All email services failed. Please check your configuration.')
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        messageId: result.id || 'emailjs-sent',
-        type: type,
-        provider: 'emailjs'
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    )
   } catch (error) {
     console.error('Error sending email:', error)
     return new Response(
@@ -162,6 +165,62 @@ serve(async (req) => {
     )
   }
 })
+
+function generateOtpHTML(data: any): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Code de Vérification</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #dc2626, #16a34a, #2563eb); padding: 25px; border-radius: 12px;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Code de Vérification</h1>
+          <p style="color: white; margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">MINJEC - Ministère de la Jeunesse et de la Culture</p>
+        </div>
+        
+        <div style="background: #f0f9ff; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 25px; border: 2px solid #0ea5e9;">
+          <h2 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 22px;">Votre code de vérification</h2>
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            <div style="font-size: 48px; font-weight: bold; color: #0c4a6e; letter-spacing: 8px; font-family: monospace; margin: 10px 0;">
+              ${data.otp}
+            </div>
+          </div>
+          <p style="color: #0c4a6e; margin: 15px 0 0 0; font-weight: 500;">
+            ⚠️ Ce code expire dans 10 minutes
+          </p>
+        </div>
+        
+        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 18px;">🔒 Instructions de sécurité</h3>
+          <ul style="color: #92400e; margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 8px;">Ne partagez jamais ce code avec personne</li>
+            <li style="margin-bottom: 8px;">Utilisez ce code uniquement sur le site officiel MINJEC</li>
+            <li style="margin-bottom: 8px;">Si vous n'avez pas demandé ce code, ignorez cet email</li>
+            <li style="margin-bottom: 8px;">Le code expire automatiquement après 10 minutes</li>
+          </ul>
+        </div>
+        
+        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h4 style="color: #374151; margin: 0 0 10px 0; font-size: 16px;">💡 Besoin d'aide?</h4>
+          <p style="color: #6b7280; margin: 0; font-size: 14px;">
+            Si vous rencontrez des difficultés, contactez notre équipe support.
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px; margin: 0;">
+            📧 admin@minjec.gov.dj | 📞 +253 21 35 26 14<br>
+            Ministère de la Jeunesse et de la Culture - République de Djibouti
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}
 
 function generateAdminNotificationHTML(data: any): string {
   const userTypeLabels: Record<string, string> = {
