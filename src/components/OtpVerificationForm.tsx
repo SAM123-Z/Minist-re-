@@ -87,18 +87,21 @@ export default function OtpVerificationForm({ email, onSuccess, onBackToLogin }:
     setMessage(null);
 
     try {
-      // Vérifier le code OTP
-      const { data, error } = await supabase.functions.invoke('verify-otp', {
-        body: {
+      // Vérifier le code OTP via le microservice
+      const response = await fetch('http://localhost:3001/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: email,
-          otp: codeToVerify,
-          type: 'approval'
-        }
+          otp: codeToVerify
+        })
       });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      if (!data.verified) {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || 'Code OTP invalide');
       }
 
