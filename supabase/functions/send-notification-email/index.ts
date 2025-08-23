@@ -54,7 +54,7 @@ serve(async (req) => {
         break
         
       case 'approval':
-        subject = `✅ Inscription approuvée - Code d'activation: ${data.gatewayCode}`
+        subject = `✅ Inscription approuvée - Code d'activation à 4 chiffres`
         htmlContent = generateApprovalHTML(data)
         break
         

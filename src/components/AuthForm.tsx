@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { supabase, type AuthFormData, type UserType } from '../lib/supabase';
-import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin, UserPlus, KeyRound } from 'lucide-react';
 import RegistrationForm from './RegistrationForm';
+import OtpVerificationForm from './OtpVerificationForm';
 
 interface AuthFormProps {
   onSuccess: (user: any) => void;
 }
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
-  const [currentView, setCurrentView] = useState<'login' | 'register'>('login');
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'otp'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otpEmail, setOtpEmail] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +78,15 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     return <RegistrationForm onBackToLogin={() => setCurrentView('login')} />;
   }
 
+  if (currentView === 'otp') {
+    return (
+      <OtpVerificationForm 
+        email={otpEmail}
+        onSuccess={onSuccess}
+        onBackToLogin={() => setCurrentView('login')}
+      />
+    );
+  }
   // Contact Information Component
   const ContactInfo = () => (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -235,17 +246,32 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
 
             {/* Registration Link */}
             <div className="text-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Pas de compte?
-                <button
-                  type="button"
-                  onClick={() => setCurrentView('register')}
-                  className="ml-2 text-red-600 hover:text-red-700 font-medium transition-colors flex items-center gap-1 justify-center"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  S'inscrire
-                </button>
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Pas de compte?
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('register')}
+                    className="ml-2 text-red-600 hover:text-red-700 font-medium transition-colors"
+                  >
+                    S'inscrire
+                  </button>
+                </p>
+                <p className="text-sm text-gray-600">
+                  Déjà approuvé?
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpEmail(email);
+                      setCurrentView('otp');
+                    }}
+                    className="ml-2 text-blue-600 hover:text-blue-700 font-medium transition-colors flex items-center gap-1 justify-center"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    Saisir code OTP
+                  </button>
+                </p>
+              </div>
             </div>
           </form>
         </div>

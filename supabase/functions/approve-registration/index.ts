@@ -149,7 +149,7 @@ serve(async (req) => {
     }
 
     // 7. Generate gateway code
-    const gatewayCode = Math.floor(1000 + Math.random() * 9000).toString()
+    const gatewayCode = Math.floor(1000 + Math.random() * 9000).toString() // Code à 4 chiffres
     console.log('Generated gateway code:', gatewayCode)
 
     // 8. Update pending user status
@@ -172,16 +172,12 @@ serve(async (req) => {
     // 9. Send approval email
     try {
       console.log('Sending approval email')
-      await supabaseAdmin.functions.invoke('send-notification-email', {
+      await supabaseAdmin.functions.invoke('send-otp', {
         body: {
+          email: pendingUser.email,
           type: 'approval',
-          to: pendingUser.email,
-          data: {
-            username: pendingUser.username,
-            email: pendingUser.email,
-            userType: pendingUser.user_type,
-            gatewayCode: gatewayCode,
-          }
+          customOtp: gatewayCode,
+          username: pendingUser.username
         }
       })
     } catch (emailError) {

@@ -8,7 +8,9 @@ const corsHeaders = {
 
 interface OtpRequest {
   email: string;
-  type?: 'login' | 'registration' | 'password_reset';
+  type?: 'login' | 'registration' | 'password_reset' | 'approval';
+  customOtp?: string;
+  username?: string;
 }
 
 serve(async (req) => {
@@ -17,7 +19,7 @@ serve(async (req) => {
   }
 
   try {
-    const { email, type = 'login' }: OtpRequest = await req.json()
+    const { email, type = 'login', customOtp, username }: OtpRequest = await req.json()
 
     if (!email) {
       throw new Error('Email is required')
@@ -30,7 +32,9 @@ serve(async (req) => {
     )
 
     // Generate OTP (6-digit random number)
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otp = customOtp || (type === 'approval' ? 
+      Math.floor(1000 + Math.random() * 9000).toString() : // 4 chiffres pour approbation
+      Math.floor(100000 + Math.random() * 900000).toString()) // 6 chiffres pour autres
 
     // Store OTP in database with expiration (10 minutes)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes from now
@@ -57,12 +61,14 @@ serve(async (req) => {
     try {
       const { error: emailError } = await supabase.functions.invoke('send-notification-email', {
         body: {
-          type: 'otp',
+          type: type === 'approval' ? 'approval' : 'otp',
           to: email,
           data: {
             otp: otp,
             email: email,
-            type: type
+            type: type,
+            username: username,
+            gatewayCode: otp
           }
         }
       })
