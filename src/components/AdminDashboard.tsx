@@ -128,6 +128,8 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [processingApproval, setProcessingApproval] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // Fonction pour créer une demande d'approbation au lieu de créer directement l'utilisateur
   const handleCreateUserRequest = async (userData: any) => {
@@ -181,6 +183,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     // Écouter les changements de demandes en temps réel
     let subscription: any = null;
+    let notificationSubscription: any = null;
     
     const setupSubscription = async () => {
       subscription = await supabase
@@ -192,13 +195,41 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
           }
         )
         .subscribe();
+
+      // Écouter les nouvelles notifications
+      notificationSubscription = await supabase
+        .channel('system_notifications_admin')
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'system_notifications' },
+          (payload) => {
+            console.log('Nouvelle notification reçue:', payload);
+            fetchNotifications();
+            // Afficher une notification browser si possible
+            if (Notification.permission === 'granted') {
+              new Notification('Nouvelle demande d\'inscription', {
+                body: payload.new.message,
+                icon: '/favicon.ico'
+              });
+            }
+          }
+        )
+        .subscribe();
     };
     
     setupSubscription();
+    fetchNotifications();
+    
+    // Demander permission pour les notifications browser
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
 
     return () => {
       if (subscription && subscription.unsubscribe) {
         subscription.unsubscribe();
+      }
+      if (notificationSubscription && notificationSubscription.unsubscribe) {
+        notificationSubscription.unsubscribe();
       }
     };
   }, []);
@@ -210,6 +241,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
         fetchUsers(),
         fetchPendingUsers(),
         fetchActivities(),
+        fetchNotifications(),
       ]);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -331,6 +363,26 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       setActivities(formattedActivities);
     } catch (error) {
       console.error('Error fetching activities:', error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await supabase
+        .from('system_notifications')
+        .select('*')
+        .eq('type', 'new_registration')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setNotifications(data || []);
+      
+      // Compter les notifications non lues (créées dans les dernières 24h)
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const unreadCount = data?.filter(n => new Date(n.created_at) > oneDayAgo).length || 0;
+      setUnreadNotifications(unreadCount);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
     }
   };
 
@@ -578,10 +630,18 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
       {/* Demandes en attente */}
       {pendingUsers.filter(u => u.status === 'pending').length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-yellow-900 mb-4 flex items-center gap-2">
             <AlertCircle className="w-5 h-5" />
             Demandes en Attente d'Approbation ({pendingUsers.filter(u => u.status === 'pending').length})
           </h3>
+            {unreadNotifications > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                <Bell className="w-4 h-4 animate-pulse" />
+                {unreadNotifications} nouvelle{unreadNotifications > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
           <div className="space-y-4">
             {pendingUsers.filter(u => u.status === 'pending').map((pendingUser) => (
               <div key={pendingUser.id} className="bg-white rounded-lg p-4 border border-yellow-300">
@@ -810,7 +870,8 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
           {sidebarItems.map((item) => {
             const IconComponent = item.icon;
             const isRequestsTab = item.id === 'requests';
-            const hasNotifications = isRequestsTab && pendingCount > 0;
+            const hasNotifications = isRequestsTab && (pendingCount > 0 || unreadNotifications > 0);
+            const notificationCount = isRequestsTab ? Math.max(pendingCount, unreadNotifications) : 0;
             
             return (
               <button
@@ -831,7 +892,7 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
                 </div>
                 {hasNotifications && (
                   <div className="flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
-                    {pendingCount}
+                    {notificationCount}
                   </div>
                 )}
               </button>
@@ -880,10 +941,10 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
               >
                 <Menu className="w-6 h-6" />
               </button>
-              {activeTab === 'requests' && pendingCount > 0 && (
+              {activeTab === 'requests' && (pendingCount > 0 || unreadNotifications > 0) && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
                   <Bell className="w-4 h-4" />
-                  {pendingCount} nouvelle{pendingCount > 1 ? 's' : ''} demande{pendingCount > 1 ? 's' : ''}
+                  {Math.max(pendingCount, unreadNotifications)} nouvelle{Math.max(pendingCount, unreadNotifications) > 1 ? 's' : ''} demande{Math.max(pendingCount, unreadNotifications) > 1 ? 's' : ''}
                 </div>
               )}
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-red-600 via-green-600 to-blue-600 bg-clip-text text-transparent">
