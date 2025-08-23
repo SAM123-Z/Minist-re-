@@ -230,6 +230,9 @@ function generateAdminNotificationHTML(data: any): string {
     'admin': 'Administrateur'
   }
 
+  // Générer un ID unique pour cette demande (utiliser les premières lettres du nom + timestamp)
+  const requestId = `${data.username?.substring(0, 3).toUpperCase() || 'REQ'}-${Date.now().toString().slice(-6)}`
+
   return `
     <!DOCTYPE html>
     <html>
@@ -242,6 +245,7 @@ function generateAdminNotificationHTML(data: any): string {
         <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #dc2626, #16a34a, #2563eb); padding: 20px; border-radius: 12px;">
           <h1 style="color: white; margin: 0; font-size: 24px;">MINJEC - Nouvelle Demande</h1>
           <p style="color: white; margin: 10px 0 0 0; opacity: 0.9;">Système de Gestion des Inscriptions</p>
+          <p style="color: white; margin: 10px 0 0 0; font-weight: bold; font-size: 18px;">ID: ${requestId}</p>
         </div>
         
         <div style="background: #f8fafc; padding: 25px; border-radius: 12px; border-left: 4px solid #2563eb; margin-bottom: 25px;">
@@ -274,18 +278,31 @@ function generateAdminNotificationHTML(data: any): string {
           </table>
         </div>
         
+        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 18px;">📧 Approbation par Email</h3>
+          <p style="color: #92400e; margin: 0 0 15px 0; font-size: 14px;">
+            Vous pouvez approuver ou rejeter cette demande directement par email :
+          </p>
+          <div style="display: flex; gap: 10px; margin: 15px 0;">
+            <a href="mailto:admin@minjec.gov.dj?subject=APPROUVER-${requestId}&body=Demande approuvée pour ${data.username}" 
+               style="display: inline-block; background: #16a34a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-right: 10px;">
+              ✅ APPROUVER
+            </a>
+            <a href="mailto:admin@minjec.gov.dj?subject=REJETER-${requestId}&body=Demande rejetée pour ${data.username}. Raison: [Indiquez la raison ici]" 
+               style="display: inline-block; background: #dc2626; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              ❌ REJETER
+            </a>
+          </div>
+          <p style="color: #92400e; margin: 15px 0 0 0; font-size: 12px; font-style: italic;">
+            Cliquez sur les boutons ci-dessus ou répondez à cet email avec "APPROUVER-${requestId}" ou "REJETER-${requestId}" dans l'objet.
+          </p>
+        </div>
+        
         <div style="text-align: center; margin: 30px 0;">
           <a href="${data.adminPanelUrl || 'https://your-admin-panel.com/requests'}" 
              style="display: inline-block; background: linear-gradient(135deg, #dc2626, #16a34a, #2563eb); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
             🔍 Traiter la demande
           </a>
-        </div>
-        
-        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 25px 0;">
-          <h3 style="color: #92400e; margin: 0 0 10px 0; font-size: 16px;">⚡ Action requise</h3>
-          <p style="color: #92400e; margin: 0; font-size: 14px;">
-            Cette demande nécessite votre approbation. L'utilisateur sera notifié par email de votre décision.
-          </p>
         </div>
         
         <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
