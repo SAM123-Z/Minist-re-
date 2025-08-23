@@ -106,7 +106,27 @@ export default function RegistrationRequestsManager({ user }: RegistrationReques
       
     } catch (error: any) {
       console.error('Erreur lors de l\'approbation:', error);
-      alert('Erreur lors de l\'approbation: ' + error.message);
+      
+      let errorMessage = 'Erreur inconnue';
+      
+      // Try to extract detailed error from Edge Function response
+      if (error.context?.response) {
+        try {
+          const responseText = await error.context.response.text();
+          try {
+            const responseJson = JSON.parse(responseText);
+            errorMessage = responseJson.error || responseJson.message || responseText;
+          } catch {
+            errorMessage = responseText || error.message;
+          }
+        } catch {
+          errorMessage = error.message || 'Edge Function returned a non-2xx status code';
+        }
+      } else {
+        errorMessage = error.message || 'Erreur lors de l\'approbation';
+      }
+      
+      alert('Erreur lors de l\'approbation: ' + errorMessage);
     } finally {
       setProcessingId(null);
     }
