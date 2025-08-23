@@ -172,7 +172,7 @@ serve(async (req) => {
     // 9. Send approval email
     try {
       console.log('Sending approval email')
-      await supabaseAdmin.functions.invoke('send-otp', {
+      const { data: emailData, error: emailError } = await supabaseAdmin.functions.invoke('send-otp', {
         body: {
           email: pendingUser.email,
           type: 'approval',
@@ -180,9 +180,15 @@ serve(async (req) => {
           username: pendingUser.username
         }
       })
+      
+      if (emailError) {
+        console.warn('Email sending failed but continuing approval:', emailError)
+      } else {
+        console.log('Approval email sent successfully:', emailData)
+      }
     } catch (emailError) {
-      console.error('Error sending approval email:', emailError)
-      // Don't fail the approval if email fails
+      console.warn('Error sending approval email, but approval continues:', emailError)
+      // Continue with approval even if email fails
     }
 
     // 10. Log activity
@@ -208,7 +214,8 @@ serve(async (req) => {
         success: true, 
         userId: userId,
         gatewayCode: gatewayCode,
-        message: `Utilisateur ${pendingUser.username} approuvé avec succès!`
+        message: `Utilisateur ${pendingUser.username} approuvé avec succès!`,
+        emailSent: !emailError
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

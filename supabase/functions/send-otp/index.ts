@@ -21,6 +21,25 @@ serve(async (req) => {
   try {
     const { email, type = 'login', customOtp, username }: OtpRequest = await req.json()
 
+    // Check if email configuration is available
+    const MAIL_USERNAME = Deno.env.get('MAIL_USERNAME') || Deno.env.get('GMAIL_USER')
+    const MAIL_PASSWORD = Deno.env.get('MAIL_PASSWORD') || Deno.env.get('GMAIL_APP_PASSWORD')
+    
+    if (!MAIL_USERNAME || !MAIL_PASSWORD) {
+      console.warn('Email configuration missing - OTP cannot be sent')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Email configuration not available',
+          code: 'EMAIL_CONFIG_MISSING'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+    
     if (!email) {
       throw new Error('Email is required')
     }
