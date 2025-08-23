@@ -180,18 +180,26 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     fetchDashboardData();
     
     // Écouter les changements de demandes en temps réel
-    const subscription = supabase
-      .channel('pending_users_admin')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'pending_users' },
-        () => {
-          fetchPendingUsers();
-        }
-      )
-      .subscribe();
+    let subscription: any = null;
+    
+    const setupSubscription = async () => {
+      subscription = await supabase
+        .channel('pending_users_admin')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'pending_users' },
+          () => {
+            fetchPendingUsers();
+          }
+        )
+        .subscribe();
+    };
+    
+    setupSubscription();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription && subscription.unsubscribe) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
