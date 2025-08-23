@@ -507,6 +507,16 @@ export default function AdminDashboard({ user, profile, onLogout }: AdminDashboa
     
     setProcessingApproval(pendingId);
     try {
+      // Récupérer les informations de la demande
+      const { data: pendingUser, error: fetchError } = await supabase
+        .from('pending_users')
+        .select('*')
+        .eq('id', pendingId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!pendingUser) throw new Error('Demande non trouvée');
+
       const { error } = await supabase
         .from('pending_users')
         .update({

@@ -128,79 +128,74 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
     setMessage(null);
 
     try {
-      if (selectedUserType === 'standard_user') {
-        // Inscription directe pour les utilisateurs standard
-        const { data: authData, error } = await supabase.auth.signUp({
-          email: data.email,
-          password: data.password,
-        });
+      // TOUTES les inscriptions passent par le système d'approbation
+      const additionalInfo: any = {};
 
-        if (error) throw error;
-
-        if (authData.user) {
-          // Créer le profil utilisateur
-          const { error: profileError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: authData.user.id,
-              user_type: 'standard_user',
-              username: data.username,
-              user_id_or_registration: data.userIdOrRegistration,
-            });
-
-          if (profileError) throw profileError;
-
-          setMessage({ 
-            type: 'success', 
-            text: 'Inscription réussie! Vérifiez votre email pour confirmer votre compte.' 
-          });
-
-          setTimeout(() => {
-            onBackToLogin();
-          }, 3000);
-        }
-      } else {
-        // Créer une demande d'approbation pour les autres types d'utilisateurs
-        const additionalInfo: any = {};
-
-        if (selectedUserType === 'cdc_agent' && data.region) {
-          additionalInfo.region = data.region;
-          if (data.commune) additionalInfo.commune = data.commune;
-          if (data.quartierCite) additionalInfo.quartierCite = data.quartierCite;
-        }
-
-        if (selectedUserType === 'association') {
-          if (data.associationName) additionalInfo.associationName = data.associationName;
-          if (data.activitySector) additionalInfo.activitySector = data.activitySector;
-          if (data.address) additionalInfo.address = data.address;
-          if (data.phone) additionalInfo.phone = data.phone;
-        }
-
-        // Stocker le mot de passe de manière sécurisée (en production, utiliser un hash)
-        additionalInfo.password = data.password;
-
-        const { error } = await supabase
-          .from('pending_users')
-          .insert({
-            email: data.email,
-            username: data.username,
-            user_type: selectedUserType,
-            user_id_or_registration: data.userIdOrRegistration,
-            additional_info: additionalInfo,
-            status: 'pending'
-          });
-
-        if (error) throw error;
-
-        setMessage({ 
-          type: 'success', 
-          text: `✅ Demande d'inscription soumise avec succès!\n\n📧 Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.\n\n⏱️ Délai de traitement: 24-48h` 
-        });
-
-        setTimeout(() => {
-          setShowContactInfo(true);
-        }, 3000);
+      // Préparer les informations spécifiques selon le type d'utilisateur
+      if (selectedUserType === 'cdc_agent' && data.region) {
+        additionalInfo.region = data.region;
+        if (data.commune) additionalInfo.commune = data.commune;
+        if (data.quartierCite) additionalInfo.quartierCite = data.quartierCite;
       }
+
+      if (selectedUserType === 'association') {
+        if (data.associationName) additionalInfo.associationName = data.associationName;
+        if (data.activitySector) additionalInfo.activitySector = data.activitySector;
+        if (data.address) additionalInfo.address = data.address;
+        if (data.phone) additionalInfo.phone = data.phone;
+      }
+
+      // Stocker le mot de passe de manière sécurisée
+      additionalInfo.password = data.password;
+
+      // Créer la demande d'approbation
+      const { data: pendingUserData, error } = await supabase
+        .from('pending_users')
+        .insert({
+          email: data.email,
+          username: data.username,
+          user_type: selectedUserType,
+          user_id_or_registration: data.userIdOrRegistration,
+          additional_info: additionalInfo,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Envoyer notification immédiate à l'admin
+      try {
+        const selectedOption = userTypeOptions.find(option => option.value === selectedUserType);
+        
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'admin_notification',
+            to: 'admin@minjec.gov.dj',
+            data: {
+              username: data.username,
+              email: data.email,
+              userType: selectedOption?.label || selectedUserType,
+              userIdOrRegistration: data.userIdOrRegistration,
+              submissionDate: new Date().toLocaleDateString('fr-FR'),
+              adminPanelUrl: window.location.origin + '/admin/requests'
+            }
+          }
+        });
+      } catch (emailError) {
+        console.error('Erreur lors de l\'envoi de la notification:', emailError);
+        // Ne pas bloquer l'inscription si l'email échoue
+      }
+
+      setMessage({ 
+        type: 'success', 
+        text: `✅ Demande d'inscription soumise avec succès!\n\n📧 Un administrateur a été notifié de votre demande.\n\n🔑 Vous recevrez un email avec votre code d'activation à 4 chiffres une fois votre demande approuvée.\n\n⏱️ Délai de traitement: 24-48h` 
+      });
+
+      setTimeout(() => {
+        setShowContactInfo(true);
+      }, 3000);
+
     } catch (error: any) {
       console.error('Erreur lors de l\'inscription:', error);
       setMessage({ 
@@ -603,14 +598,14 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
                 <span className="text-sm font-medium text-blue-800">
-                  Tous les comptes nécessitent une approbation administrative.
+                  Toutes les inscriptions nécessitent une approbation administrative.
                 </span>
               </div>
               <p className="text-sm text-blue-700 mt-1">
                 Vous recevrez un email avec votre code de passerelle à 4 chiffres une fois votre demande approuvée par un administrateur.
               </p>
               <p className="text-sm text-blue-700 mt-1">
-                🔔 L'administrateur sera notifié en temps réel de votre demande.
+                🔔 L'administrateur sera notifié immédiatement de votre demande.
               </p>
             </div>
 
