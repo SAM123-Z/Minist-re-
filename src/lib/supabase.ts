@@ -45,6 +45,16 @@ const createMockSupabaseClient = () => {
 
   return {
     from: () => mockQuery,
+    channel: (channelName: string) => ({
+      on: (event: string, filter: any, callback: any) => ({
+        on: (event: string, filter: any, callback: any) => ({
+          subscribe: () => Promise.resolve({ error: null })
+        }),
+        subscribe: () => Promise.resolve({ error: null })
+      }),
+      subscribe: () => Promise.resolve({ error: null }),
+      unsubscribe: () => Promise.resolve({ error: null })
+    }),
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       signUp: () => Promise.resolve({ data: { user: null, session: null }, error: null }),
