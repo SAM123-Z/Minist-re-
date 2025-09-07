@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import AuthForm from './components/AuthForm';
+import AuthCallback from './components/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import OffresPage from './pages/OffresPage';
 import CandidaturesPage from './pages/CandidaturesPage';
@@ -13,9 +14,39 @@ import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function App() {
+  const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Gérer le callback OAuth
+  useEffect(() => {
+    // Si nous sommes sur la page de callback OAuth, gérer l'authentification
+    if (location.pathname === '/auth/callback') {
+      const handleOAuthCallback = async () => {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Erreur OAuth callback:', error);
+            toast.error('Erreur lors de l\'authentification OAuth');
+            return;
+          }
+
+          if (data.session?.user) {
+            setUser(data.session.user);
+            await fetchProfile(data.session.user.id);
+            toast.success('Connexion OAuth réussie!');
+          }
+        } catch (error) {
+          console.error('Erreur lors du traitement du callback OAuth:', error);
+          toast.error('Erreur lors de l\'authentification');
+        }
+      };
+
+      handleOAuthCallback();
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -123,6 +154,11 @@ function App() {
 
   // If not authenticated, show auth form
   if (!user) {
+    // Afficher le composant de callback OAuth si nous sommes sur cette route
+    if (location.pathname === '/auth/callback') {
+      return <AuthCallback />;
+    }
+    
     return <AuthForm onSuccess={handleAuthSuccess} />;
   }
 
@@ -152,6 +188,7 @@ function App() {
   return (
     <Layout user={user} profile={profile} onLogout={handleLogout}>
       <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard user={user} profile={profile} />} />
         <Route path="/offres" element={<OffresPage user={user} profile={profile} />} />

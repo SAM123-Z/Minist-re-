@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase, type AuthFormData, type UserType } from '../lib/supabase';
-import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin, UserPlus, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Phone, Mail, MapPin, UserPlus, KeyRound, Github, Chrome } from 'lucide-react';
 import RegistrationForm from './RegistrationForm';
 import OtpVerificationForm from './OtpVerificationForm';
 
@@ -16,6 +16,41 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otpEmail, setOtpEmail] = useState('');
+
+  // Fonction pour l'authentification OAuth
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        }
+      });
+
+      if (error) throw error;
+
+      setMessage({ 
+        type: 'success', 
+        text: `Redirection vers ${provider === 'google' ? 'Google' : 'GitHub'}...` 
+      });
+
+    } catch (error: any) {
+      console.error(`Erreur OAuth ${provider}:`, error);
+      setMessage({ 
+        type: 'error', 
+        text: `Erreur lors de la connexion avec ${provider === 'google' ? 'Google' : 'GitHub'}: ${error.message}` 
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,6 +309,40 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               </div>
             </div>
           </form>
+
+          {/* OAuth Section */}
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Ou continuer avec</span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleOAuthLogin('google')}
+                disabled={isLoading}
+                className="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+              >
+                <Chrome className="w-5 h-5 text-red-500" />
+                Google
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOAuthLogin('github')}
+                disabled={isLoading}
+                className="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+              >
+                <Github className="w-5 h-5 text-gray-700" />
+                GitHub
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

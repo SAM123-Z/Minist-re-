@@ -1,78 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Check if environment variables are defined
+// Configuration Supabase depuis les variables d'environnement
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Create mock Supabase client if environment variables are not configured
-const createMockSupabaseClient = () => {
-  const mockQuery = {
-    select: () => mockQuery,
-    insert: () => mockQuery,
-    update: () => mockQuery,
-    delete: () => mockQuery,
-    eq: () => mockQuery,
-    neq: () => mockQuery,
-    gt: () => mockQuery,
-    gte: () => mockQuery,
-    lt: () => mockQuery,
-    lte: () => mockQuery,
-    like: () => mockQuery,
-    ilike: () => mockQuery,
-    is: () => mockQuery,
-    in: () => mockQuery,
-    contains: () => mockQuery,
-    containedBy: () => mockQuery,
-    rangeGt: () => mockQuery,
-    rangeGte: () => mockQuery,
-    rangeLt: () => mockQuery,
-    rangeLte: () => mockQuery,
-    rangeAdjacent: () => mockQuery,
-    overlaps: () => mockQuery,
-    textSearch: () => mockQuery,
-    match: () => mockQuery,
-    not: () => mockQuery,
-    or: () => mockQuery,
-    filter: () => mockQuery,
-    order: () => mockQuery,
-    limit: () => mockQuery,
-    range: () => mockQuery,
-    abortSignal: () => mockQuery,
-    single: () => Promise.resolve({ data: null, error: null }),
-    maybeSingle: () => Promise.resolve({ data: null, error: null }),
-    then: (resolve: any) => resolve({ data: [], error: null })
-  };
+// Vérifier que les variables d'environnement sont configurées
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Variables d\'environnement Supabase manquantes. ' +
+    'Veuillez configurer VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans votre fichier .env'
+  )
+}
 
-  return {
-    from: () => mockQuery,
-    channel: (channelName: string) => ({
-      on: (event: string, filter: any, callback: any) => ({
-        on: (event: string, filter: any, callback: any) => ({
-          subscribe: () => Promise.resolve({ error: null })
-        }),
-        subscribe: () => Promise.resolve({ error: null })
-      }),
-      subscribe: () => Promise.resolve({ error: null }),
-      unsubscribe: () => Promise.resolve({ error: null })
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: null }),
-      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: null }),
-      signOut: () => Promise.resolve({ error: null }),
-      onAuthStateChange: (callback: any) => {
-        setTimeout(() => callback('SIGNED_OUT', null), 0);
-        return { data: { subscription: { unsubscribe: () => {} } } };
-      }
+// Créer le client Supabase avec configuration OAuth
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage: window.localStorage,
+    storageKey: 'supabase.auth.token',
+    debug: import.meta.env.DEV
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'minjec-auth-system'
     }
-  };
-};
-
-// Create Supabase client or mock client
-export const supabase = (!supabaseUrl || !supabaseAnonKey || 
-  supabaseUrl.includes('your-project-ref') || supabaseAnonKey.includes('your-anon-key'))
-  ? createMockSupabaseClient()
-  : createClient(supabaseUrl, supabaseAnonKey)
+  }
+})
 
 export type UserType = 'standard_user' | 'cdc_agent' | 'association' | 'admin'
 
